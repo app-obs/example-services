@@ -1,0 +1,49 @@
+services:
+  product:
+    build: ./product-service
+    ports:
+      - "${PRODUCT_PORT}:${PRODUCT_PORT}"
+    environment:
+      - OPENOBSERVE_URL=${O2_SERVICE}:${ZO_HTTP_PORT}
+      - OPENOBSERVE_AUTH_TOKEN=${O2_AUTH_TOKEN}
+      - PORT=${PRODUCT_PORT}
+    labels:
+      service: ${PRODUCT_SERVICE}
+    logging:
+      driver: loki
+      options:
+        loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
+  user:
+    build: ./user-service
+    ports:
+      - "${USER_PORT}:${USER_PORT}"
+    environment:
+      - OPENOBSERVE_URL=${O2_SERVICE}:${ZO_HTTP_PORT}
+      - OPENOBSERVE_AUTH_TOKEN=${O2_AUTH_TOKEN}
+      - PORT=${USER_PORT}
+    labels:
+      service: ${USER_SERVICE}
+    logging:
+      driver: loki
+      options:
+        loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
+  frontend:
+    build: ./frontend-service
+    ports:
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    environment:
+      - OTLP_AUTH_TOKEN=${O2_AUTH_TOKEN}
+      - PORT=${FRONTEND_PORT}
+      - OPENOBSERVE_URL=${O2_SERVICE}:${ZO_HTTP_PORT}
+      - OPENOBSERVE_AUTH_TOKEN=${O2_AUTH_TOKEN}
+      - PRODUCT_SERVICE_URL=http://${PRODUCT_SERVICE}:${PRODUCT_PORT}
+      - USER_SERVICE_URL=http://${USER_SERVICE}:${USER_PORT}
+    labels:
+      service: ${FRONTEND_SERVICE}
+    depends_on:
+      - ${PRODUCT_SERVICE}
+      - ${USER_SERVICE}
+    logging:
+      driver: loki
+      options:
+        loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
