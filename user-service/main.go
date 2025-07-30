@@ -20,10 +20,12 @@ import (
 )
 
 var (
+	serviceApp  = getEnvOrDefault("APPLICATION", "ecommerce")
+	serviceEnv  = getEnvOrDefault("ENVIRONMENT", "development")
+	collectorURL = getEnvOrDefault("OTLP_URL", "tempo:4318")
+	collectorHTTPPath = getEnvOrDefault("OTLP_HTTP_PATH", "/v1/traces")
+
 	serviceName      = getEnvOrDefault("SERVICE_NAME", "user-service")
-	collectorURL     = getEnvOrDefault("OPENOBSERVE_URL", "http://36.64.55.158:5080")
-	EnvOtlpAuthToken = "OPENOBSERVE_AUTH_TOKEN"
-	DefaultAuthToken = ""
 	EnvPort          = "PORT"
 	DefaultPort      = "8087"
 	tracer           = otel.Tracer(serviceName)
@@ -66,11 +68,8 @@ func initTracerProvider(serviceName string, collectorURL string) (*sdktrace.Trac
 	// Buat OTLP HTTP Exporter
 	client := otlptracehttp.NewClient(
 		otlptracehttp.WithEndpoint(collectorURL),
-		otlptracehttp.WithInsecure(),                        // Gunakan ini jika OpenObserve tidak menggunakan HTTPS
-		otlptracehttp.WithURLPath("/api/default/v1/traces"), // Path untuk OpenObserve
-		otlptracehttp.WithHeaders(map[string]string{
-			"Authorization": "Basic " + getEnvOrDefault(EnvOtlpAuthToken, DefaultAuthToken),
-		}),
+		otlptracehttp.WithInsecure(),            // Gunakan ini jika Tempo OTLP
+		otlptracehttp.WithURLPath(collectorHTTPPath), // Path untuk Tempo OTLP
 	)
 	exporter, err := otlptrace.New(ctx, client)
 	if err != nil {
@@ -116,7 +115,15 @@ func main() {
 	service := NewUserService(repo)
 
 	http.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
-		handleUser(w, r, service)
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		// fmt.Println(propagation.HeaderCarrier(r.Header))
+		ctx, span := tracer.Start(ctx, "/user",
+			trace.WithAttributes(
+				attribute.String("http.method", r.Method),
+				attribute.String("http.url", r.URL.String()),
+			))
+		defer span.End()
+		handleUser(ctx, w, r, service)
 	})
 
 	port := getEnvOrDefault(EnvPort, DefaultPort)
@@ -125,8 +132,8 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
 
-func handleUser(w http.ResponseWriter, r *http.Request, service UserService) {
-	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+func handleUser(ctx context.Context, w http.ResponseWriter, r *http.Request, service UserService) {
+	// ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 
 	ctx, span := tracer.Start(ctx, "handleUser",
 		trace.WithAttributes(

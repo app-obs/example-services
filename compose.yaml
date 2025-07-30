@@ -4,42 +4,48 @@ services:
     ports:
       - "${PRODUCT_PORT}:${PRODUCT_PORT}"
     environment:
-      - OPENOBSERVE_URL=${O2_SERVICE}:${ZO_HTTP_PORT}
-      - OPENOBSERVE_AUTH_TOKEN=${O2_AUTH_TOKEN}
       - PORT=${PRODUCT_PORT}
+      - OTLP_URL=${OTLP_URL}
     labels:
       service: ${PRODUCT_SERVICE}
+      application: ${APPLICATION}
+      environment: ${ENVIRONMENT}
     logging:
       driver: loki
       options:
         loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
+        labels: service,application,environment
   user:
     build: ./user-service
     ports:
       - "${USER_PORT}:${USER_PORT}"
     environment:
-      - OPENOBSERVE_URL=${O2_SERVICE}:${ZO_HTTP_PORT}
-      - OPENOBSERVE_AUTH_TOKEN=${O2_AUTH_TOKEN}
       - PORT=${USER_PORT}
+      - OTLP_URL=${OBSERVABILITY_HOST}:${OTLP_HTTP_PORT}
+      - OTLP_HTTP_PATH=${OTLP_HTTP_PATH}
     labels:
       service: ${USER_SERVICE}
+      application: ${APPLICATION}
+      environment: ${ENVIRONMENT}
     logging:
       driver: loki
       options:
         loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
+        labels: service,application,environment
   frontend:
     build: ./frontend-service
     ports:
       - "${FRONTEND_PORT}:${FRONTEND_PORT}"
     environment:
-      - OTLP_AUTH_TOKEN=${O2_AUTH_TOKEN}
       - PORT=${FRONTEND_PORT}
-      - OPENOBSERVE_URL=${O2_SERVICE}:${ZO_HTTP_PORT}
-      - OPENOBSERVE_AUTH_TOKEN=${O2_AUTH_TOKEN}
+      - OTLP_URL=${OBSERVABILITY_HOST}:${OTLP_HTTP_PORT}
+      - OTLP_HTTP_PATH=${OTLP_HTTP_PATH}
       - PRODUCT_SERVICE_URL=http://${PRODUCT_SERVICE}:${PRODUCT_PORT}
       - USER_SERVICE_URL=http://${USER_SERVICE}:${USER_PORT}
     labels:
       service: ${FRONTEND_SERVICE}
+      application: ${APPLICATION}
+      environment: ${ENVIRONMENT}
     depends_on:
       - ${PRODUCT_SERVICE}
       - ${USER_SERVICE}
@@ -47,3 +53,4 @@ services:
       driver: loki
       options:
         loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
+        labels: service,application,environment

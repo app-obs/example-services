@@ -21,12 +21,14 @@ import (
 )
 
 var (
+	serviceApp  = getEnvOrDefault("APPLICATION", "ecommerce")
+	serviceEnv  = getEnvOrDefault("ENVIRONMENT", "development")
+	collectorURL = getEnvOrDefault("OTLP_URL", "tempo:4318")
+	collectorHTTPPath = getEnvOrDefault("OTLP_HTTP_PATH", "/v1/traces")
+
 	serviceName       = getEnvOrDefault("SERVICE_NAME", "frontend-service")
-	collectorURL      = getEnvOrDefault("OPENOBSERVE_URL", "http://36.64.55.158:5080")
 	productServiceURL = getEnvOrDefault("PRODUCT_SERVICE_URL", "http://product-service:8086")
 	userServiceURL    = getEnvOrDefault("USER_SERVICE_URL", "http://user-service:8087")
-	EnvOtlpAuthToken  = "OPENOBSERVE_AUTH_TOKEN"
-	DefaultAuthToken  = ""
 	EnvPort           = "PORT"
 	DefaultPort       = "8085"
 	tracer            = otel.Tracer(serviceName)
@@ -69,11 +71,8 @@ func initTracerProvider(serviceName string, collectorURL string) (*sdktrace.Trac
 	// Buat OTLP HTTP Exporter
 	client := otlptracehttp.NewClient(
 		otlptracehttp.WithEndpoint(collectorURL),
-		otlptracehttp.WithInsecure(),                        // Gunakan ini jika OpenObserve tidak menggunakan HTTPS
-		otlptracehttp.WithURLPath("/api/default/v1/traces"), // Path untuk OpenObserve
-		otlptracehttp.WithHeaders(map[string]string{
-			"Authorization": "Basic " + getEnvOrDefault(EnvOtlpAuthToken, DefaultAuthToken),
-		}),
+		otlptracehttp.WithInsecure(),            // Gunakan ini jika Tempo OTLP
+		otlptracehttp.WithURLPath(collectorHTTPPath), // Path untuk Tempo OTLP
 	)
 	exporter, err := otlptrace.New(ctx, client)
 	if err != nil {
@@ -121,7 +120,16 @@ func main() {
 	userService := NewUserService()
 
 	http.HandleFunc("/product-detail", func(w http.ResponseWriter, r *http.Request) {
-		handleProductDetail(w, r, productService, userService)
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		// fmt.Println(propagation.HeaderCarrier(r.Header))
+		ctx, span := tracer.Start(ctx, "/product-detail",
+			trace.WithAttributes(
+				attribute.String("http.method", r.Method),
+				attribute.String("http.url", r.URL.String()),
+			))
+		defer span.End()
+
+		handleProductDetail(ctx, w, r, productService, userService)
 	})
 
 	port := getEnvOrDefault(EnvPort, DefaultPort)
@@ -130,13 +138,9 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
 
-func handleProductDetail(w http.ResponseWriter, r *http.Request, productService ProductService, userService UserService) {
-	ctx := r.Context()
-	ctx, span := tracer.Start(ctx, "handleProductDetail",
-		trace.WithAttributes(
-			attribute.String("http.method", r.Method),
-			attribute.String("http.url", r.URL.String()),
-		))
+func handleProductDetail(ctx context.Context, w http.ResponseWriter, r *http.Request, productService ProductService, userService UserService) {
+	// ctx := r.Context()
+	ctx, span := tracer.Start(ctx, "handleProductDetail")
 	defer span.End()
 
 	productID := r.URL.Query().Get("id")
