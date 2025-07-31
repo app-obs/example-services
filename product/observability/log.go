@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"runtime"
@@ -103,6 +104,15 @@ func NewAPMHandler(baseHandler slog.Handler, apmType APMType) *APMHandler {
 }
 
 func (h *APMHandler) Handle(ctx context.Context, r slog.Record) error {
+	// Add trace and span IDs to the record's attributes
+	traceID, spanID := h.getTraceSpanID(ctx)
+	if traceID != "" {
+		r.AddAttrs(slog.String("trace.id", traceID))
+	}
+	if spanID != "" {
+		r.AddAttrs(slog.String("span.id", spanID))
+	}
+
 	attrs := make([]slog.Attr, 0, len(h.attrs)+r.NumAttrs())
 	attrs = append(attrs, h.attrs...)
 	r.Attrs(func(a slog.Attr) bool {
@@ -119,6 +129,25 @@ func (h *APMHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	return h.Handler.Handle(ctx, r)
 }
+
+func (h *APMHandler) getTraceSpanID(ctx context.Context) (traceID, spanID string) {
+	if h.apmType == OTLP {
+		span := trace.SpanFromContext(ctx)
+		if span.SpanContext().HasTraceID() {
+			traceID = span.SpanContext().TraceID().String()
+		}
+		if span.SpanContext().HasSpanID() {
+			spanID = span.SpanContext().SpanID().String()
+		}
+	} else if h.apmType == DataDog {
+		if ddSpan, ok := tracer.SpanFromContext(ctx); ok {
+			traceID = fmt.Sprintf("%d", ddSpan.Context().TraceID())
+			spanID = fmt.Sprintf("%d", ddSpan.Context().SpanID())
+		}
+	}
+	return
+}
+
 
 func (h *APMHandler) handleOTLP(ctx context.Context, r slog.Record, slogAttrs []slog.Attr) {
 	span := trace.SpanFromContext(ctx)
