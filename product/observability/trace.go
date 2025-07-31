@@ -23,6 +23,7 @@ type Span interface {
 	AddEvent(string, ...trace.EventOption)
 	RecordError(error, ...trace.EventOption)
 	SetStatus(codes.Code, string)
+	SetAttributes(...attribute.KeyValue)
 }
 
 // Tracer is an interface for a tracer.
@@ -41,6 +42,11 @@ type OTelSpan struct {
 func (s *OTelSpan) End() {
 	s.obs.SetContext(s.parentCtx)
 	s.Span.End()
+}
+
+// SetAttributes sets attributes on the span.
+func (s *OTelSpan) SetAttributes(attrs ...attribute.KeyValue) {
+	s.Span.SetAttributes(attrs...)
 }
 
 // OTelTracer wraps the OpenTelemetry tracer.
@@ -91,6 +97,13 @@ func (s *DataDogSpan) SetStatus(code codes.Code, description string) {
 	s.SetTag("status", description)
 }
 
+// SetAttributes sets tags on the span.
+func (s *DataDogSpan) SetAttributes(attrs ...attribute.KeyValue) {
+	for _, attr := range attrs {
+		s.SetTag(string(attr.Key), attr.Value.AsString())
+	}
+}
+
 // DataDogTracer wraps the DataDog tracer.
 type DataDogTracer struct {
 	obs *Observability
@@ -99,13 +112,14 @@ type DataDogTracer struct {
 // Start creates a new span.
 func (t *DataDogTracer) Start(ctx context.Context, spanName string) (context.Context, Span) {
 	parentCtx := t.obs.Context()
-	span, newCtx := tracer.StartSpanFromContext(ctx, spanName)
+	ddSpan, newCtx := tracer.StartSpanFromContext(ctx, spanName)
 	t.obs.SetContext(newCtx)
-	return newCtx, &DataDogSpan{
-		Span:      span,
+	span := &DataDogSpan{
+		Span:      *ddSpan,
 		obs:       t.obs,
 		parentCtx: parentCtx,
 	}
+	return newCtx, span
 }
 
 // Trace holds the active tracer.

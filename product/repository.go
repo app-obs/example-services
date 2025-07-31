@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // ErrProductNotFound is returned when a product is not found.
@@ -22,7 +21,8 @@ type productRepositoryImpl struct{}
 
 func (r *productRepositoryImpl) GetProductByID(ctx context.Context, id string) (string, error) {
 	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "ProductRepository.GetProductByID", trace.WithAttributes(attribute.String("product.id", id)))
+	ctx, span := obs.Trace.Start(ctx, "ProductRepository.GetProductByID")
+	span.SetAttributes(attribute.String("product.id", id))
 	defer span.End()
 
 	obs.Log.With(

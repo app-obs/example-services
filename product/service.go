@@ -5,7 +5,6 @@ import (
 	"product/observability"
 
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 type ProductService interface {
@@ -18,7 +17,8 @@ type productServiceImpl struct {
 
 func (s *productServiceImpl) GetProductInfo(ctx context.Context, productID string) (string, error) {
 	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "ProductService.GetProductInfo", trace.WithAttributes(attribute.String("product.id", productID)))
+	ctx, span := obs.Trace.Start(ctx, "ProductService.GetProductInfo")
+	span.SetAttributes(attribute.String("product.id", productID))
 	defer span.End()
 
 	obs.Log.With(
