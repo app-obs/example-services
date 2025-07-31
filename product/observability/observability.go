@@ -22,19 +22,19 @@ type Observability struct {
 
 // NewObservabilityFromRequest creates a new Observability instance by extracting the
 // trace context from an incoming HTTP request.
-func NewObservabilityFromRequest(r *http.Request, serviceName string) *Observability {
+func NewObservabilityFromRequest(r *http.Request, serviceName string, apmType APMType) *Observability {
 	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
-	return NewObservability(ctx, serviceName)
+	return NewObservability(ctx, serviceName, apmType)
 }
 
 // NewObservability creates a new Observability instance.
-func NewObservability(ctx context.Context, serviceName string) *Observability {
+func NewObservability(ctx context.Context, serviceName string, apmType APMType) *Observability {
 	obs := &Observability{
 		ctx: ctx,
 	}
 	baseLogger := InitLogger()
-	obs.Trace = NewTrace(obs, serviceName) // Pass obs to Trace
-	obs.Log = NewLog(obs, baseLogger)      // Pass obs to Log
+	obs.Trace = NewTrace(obs, serviceName, apmType) // Pass obs and apmType to Trace
+	obs.Log = NewLog(obs, baseLogger)              // Pass obs to Log
 	return obs
 }
 

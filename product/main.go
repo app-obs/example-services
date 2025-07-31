@@ -35,7 +35,7 @@ func getEnvOrDefault(envKey, defaultValue string) string {
 
 func main() {
 	// Create a background Observability instance for application-level logging
-	bgObs := observability.NewObservability(context.Background(), serviceName)
+	bgObs := observability.NewObservability(context.Background(), serviceName, observability.APMType(APMType))
 
 	// 1. Initialize Tracer Provider via the observability package
 	// Changed: Call observability.SetupTracing
@@ -57,7 +57,7 @@ func main() {
 
 	http.HandleFunc("/product", func(w http.ResponseWriter, r *http.Request) {
 		// Create a new Observability instance from the request
-		obs := observability.NewObservabilityFromRequest(r, serviceName)
+		obs := observability.NewObservabilityFromRequest(r, serviceName, observability.APMType(APMType))
 
 		// Start the root span for the HTTP handler using the Observability instance
 		ctx, span := obs.Trace.Start(obs.Context(), "/product",
