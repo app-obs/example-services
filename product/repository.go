@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"product-service/observability"
+	"product/observability"
 	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -15,13 +15,13 @@ import (
 var ErrProductNotFound = errors.New("product not found")
 
 type ProductRepository interface {
-	GetProductByID(ctx context.Context, obs *observability.Observability, id string) (string, error)
+	GetProductByID(ctx context.Context, id string) (string, error)
 }
 
 type productRepositoryImpl struct{}
 
-func (r *productRepositoryImpl) GetProductByID(ctx context.Context, obs *observability.Observability, id string) (string, error) {
-
+func (r *productRepositoryImpl) GetProductByID(ctx context.Context, id string) (string, error) {
+	obs := observability.ObsFromCtx(ctx)
 	ctx, span := obs.Trace.Start(ctx, "ProductRepository.GetProductByID", trace.WithAttributes(attribute.String("product.id", id)))
 	defer span.End()
 

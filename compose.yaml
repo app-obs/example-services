@@ -1,11 +1,11 @@
 services:
-  product-service:
-    build: ./product-service
+  product:
+    build: ./${PRODUCT_SERVICE}
     ports:
       - "${PRODUCT_PORT}:${PRODUCT_PORT}"
     environment:
       - PORT=${PRODUCT_PORT}
-      - OTLP_URL=${OTLP_URL}
+      - APM_URL=${APM_URL}
     labels:
       service: ${PRODUCT_SERVICE}
       application: ${APPLICATION}
@@ -15,13 +15,13 @@ services:
       options:
         loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
         labels: service,application,environment
-  user-service:
+  user:
     build: ./user-service
     ports:
       - "${USER_PORT}:${USER_PORT}"
     environment:
       - PORT=${USER_PORT}
-      - OTLP_URL=${OTLP_URL}
+      - APM_URL=${APM_URL}
     labels:
       service: ${USER_SERVICE}
       application: ${APPLICATION}
@@ -31,13 +31,13 @@ services:
       options:
         loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
         labels: service,application,environment
-  frontend-service:
+  frontend:
     build: ./frontend-service
     ports:
       - "${FRONTEND_PORT}:${FRONTEND_PORT}"
     environment:
       - PORT=${FRONTEND_PORT}
-      - OTLP_URL=${OTLP_URL}
+      - APM_URL=${APM_URL}
       - PRODUCT_SERVICE_URL=http://product-service:${PRODUCT_PORT}
       - USER_SERVICE_URL=http://user-service:${USER_PORT}
     labels:
@@ -45,8 +45,8 @@ services:
       application: ${APPLICATION}
       environment: ${ENVIRONMENT}
     depends_on:
-      - product-service
-      - user-service
+      - ${PRODUCT_SERVICE}
+      - ${USER_SERVICE}
     logging:
       driver: loki
       options:

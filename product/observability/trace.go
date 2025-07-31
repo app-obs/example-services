@@ -3,18 +3,16 @@ package observability
 import (
 	"context"
 	"fmt" // Added for fmt.Errorf
-	"log/slog" // Added for logging errors during setup
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
-	// These imports are now needed directly in this file for SetupTracing
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Span is a wrapper around trace.Span that automatically manages context restoration.
@@ -60,15 +58,21 @@ func (t *Trace) Start(ctx context.Context, spanName string, opts ...trace.SpanSt
 	return newCtx, span
 }
 
-// SetupTracing initializes and configures the global OpenTelemetry TracerProvider.
-func SetupTracing(ctx context.Context, serviceName, serviceApp, serviceEnv, collectorURL string) (*sdktrace.TracerProvider, error) {
-	// Create OTLP HTTP Exporter
-	client := otlptracehttp.NewClient(
-		otlptracehttp.WithEndpointURL(collectorURL),
-	)
-	exporter, err := otlptrace.New(ctx, client)
+// SetupTracing initializes and configures the global TracerProvider based on APM type.
+func SetupTracing(ctx context.Context, serviceName, serviceApp, serviceEnv, apmURL string, apmType string) (Shutdowner, error) {
+	switch APMType(apmType) {
+	case OTLP:
+		return setupOTLP(ctx, serviceName, serviceApp, serviceEnv, apmURL)
+	default:
+		return nil, fmt.Errorf("unsupported APM type: %s", apmType)
+	}
+}
+
+// setupOTLP configures and initializes the OpenTelemetry TracerProvider.
+func setupOTLP(ctx context.Context, serviceName, serviceApp, serviceEnv, apmURL string) (*sdktrace.TracerProvider, error) {
+	exporter, err := newOTLPExporter(ctx, apmURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create OTLP trace exporter: %w", err)
+		return nil, err
 	}
 
 	// Configure TracerProvider
@@ -92,10 +96,25 @@ func SetupTracing(ctx context.Context, serviceName, serviceApp, serviceEnv, coll
 		propagation.Baggage{},
 	))
 
-	slog.Info("OpenTelemetry TracerProvider initialized successfully",
-		"serviceName", serviceName,
-		"collectorURL", collectorURL,
+	// Use a temporary observability instance for this setup log.
+	obs := NewObservability(ctx, serviceName)
+	obs.Log.Info("OpenTelemetry TracerProvider initialized successfully",
+		"APMURL", apmURL,
+		"APMType", OTLP,
 	)
 
 	return tp, nil
+}
+
+// newOTLPExporter creates a new OTLP exporter.
+func newOTLPExporter(ctx context.Context, apmURL string) (sdktrace.SpanExporter, error) {
+	// Create OTLP HTTP Exporter
+	client := otlptracehttp.NewClient(
+		otlptracehttp.WithEndpointURL(apmURL),
+	)
+	exporter, err := otlptrace.New(ctx, client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OTLP trace exporter: %w", err)
+	}
+	return exporter, nil
 }

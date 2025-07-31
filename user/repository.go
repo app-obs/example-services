@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"user-service/observability"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -15,13 +14,13 @@ import (
 var ErrUserNotFound = errors.New("user not found")
 
 type UserRepository interface {
-	GetUserByID(ctx context.Context, obs *observability.Observability, id string) (string, error)
+	GetUserByID(ctx context.Context, id string) (string, error)
 }
 
 type userRepositoryImpl struct{}
 
-func (r *userRepositoryImpl) GetUserByID(ctx context.Context, obs *observability.Observability, id string) (string, error) {
-
+func (r *userRepositoryImpl) GetUserByID(ctx context.Context, id string) (string, error) {
+	obs := ObsFromCtx(ctx)
 	ctx, span := obs.Trace.Start(ctx, "UserRepository.GetUserByID", trace.WithAttributes(attribute.String("user.id", id)))
 	defer span.End()
 

@@ -2,22 +2,22 @@ package main
 
 import (
 	"context"
-	"product-service/observability"
+	"product/observability"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 type ProductService interface {
-	GetProductInfo(ctx context.Context, obs *observability.Observability, productID string) (string, error)
+	GetProductInfo(ctx context.Context, productID string) (string, error)
 }
 
 type productServiceImpl struct {
 	repo ProductRepository
 }
 
-func (s *productServiceImpl) GetProductInfo(ctx context.Context, obs *observability.Observability, productID string) (string, error) {
-
+func (s *productServiceImpl) GetProductInfo(ctx context.Context, productID string) (string, error) {
+	obs := observability.ObsFromCtx(ctx)
 	ctx, span := obs.Trace.Start(ctx, "ProductService.GetProductInfo", trace.WithAttributes(attribute.String("product.id", productID)))
 	defer span.End()
 
@@ -25,7 +25,7 @@ func (s *productServiceImpl) GetProductInfo(ctx context.Context, obs *observabil
 		"productID", productID,
 	).Debug("Processing request")
 
-	productInfo, err := s.repo.GetProductByID(ctx, obs, productID)
+	productInfo, err := s.repo.GetProductByID(ctx, productID)
 	if err != nil {
 		obs.Log.With(
 			"productID", productID,

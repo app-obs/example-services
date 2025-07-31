@@ -3,14 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
 	"frontend-service/observability" // <--- IMPORTANT: ensure this is correct
@@ -34,47 +31,30 @@ func getEnvOrDefault(envKey, defaultValue string) string {
 }
 
 func main() {
+	// Create a background Observability instance for application-level logging
+	bgObs := observability.NewObservability(context.Background(), serviceName)
+
 	// 1. Initialize Tracer Provider via the observability package
 	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, collectorURL)
 	if err != nil {
-		slog.Default().Error("Failed to initialize TracerProvider via observability package",
-			"context", "main",
-			slog.Any("error", err),
-		)
+		bgObs.Log.Error("Failed to initialize TracerProvider", "error", err)
 		os.Exit(1)
 	}
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
-			slog.Default().Error("Error shutting down TracerProvider",
-				"context", "main",
-				slog.Any("error", err),
-			)
+			bgObs.Log.Error("Error shutting down TracerProvider", "error", err)
 		}
 	}()
-
-	// 2. Configure slog logger
-	jsonHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     slog.LevelDebug,
-	})
-
-	// Wrap the base handler with our APMHandler to inject trace/span IDs and handle errors
-	baseLogger := slog.New(observability.NewAPMHandler(jsonHandler))
-	slog.SetDefault(baseLogger) // Set the default slog logger for general use
 
 	productService := NewProductService()
 	userService := NewUserService()
 
 	http.HandleFunc("/product-detail", func(w http.ResponseWriter, r *http.Request) {
-		// Extract context from incoming request headers for distributed tracing
-		ctx := otel.GetTextMapPropagator().Extract(r.Context(),
-			propagation.HeaderCarrier(r.Header))
-
-		// Create a new Observability instance for each request
-		obs := observability.NewObservability(ctx, baseLogger, serviceName)
+		// Create a new Observability instance from the request
+		obs := observability.NewObservabilityFromRequest(r, serviceName)
 
 		// Start the root span for the HTTP handler using the Observability instance
-		ctx, span := obs.Trace.Start(ctx, "/product-detail",
+		ctx, span := obs.Trace.Start(obs.Context(), "/product-detail",
 			trace.WithAttributes(
 				attribute.String("http.method", r.Method),
 				attribute.String("http.url", r.URL.String()),
@@ -82,7 +62,8 @@ func main() {
 		defer span.End()
 
 		// Pass the Observability instance down to the handler function
-		handleProductDetail(ctx, obs, w, r, productService, userService)
+		ctx = CtxWithObs(ctx, obs)
+		handleProductDetail(ctx, w, r, productService, userService)
 	})
 
 	port := getEnvOrDefault(EnvPort, DefaultPort)
@@ -97,19 +78,19 @@ func main() {
 		IdleTimeout:  15 * time.Second,
 	}
 
-	slog.Info("Server running", "address", addr)
+	bgObs.Log.Info("Server running", "address", addr)
 
 	if listenErr := server.ListenAndServe(); listenErr != nil && listenErr != http.ErrServerClosed {
-		slog.Error("Server stopped with an error", "error", listenErr)
+		bgObs.Log.Error("Server stopped with an error", "error", listenErr)
 		os.Exit(1)
 	}
 }
 
 // handleProductDetail now centralizes all error handling logic.
-func handleProductDetail(ctx context.Context, obs *observability.Observability,
+func handleProductDetail(ctx context.Context,
 	w http.ResponseWriter, r *http.Request,
 	productService ProductService, userService UserService) {
-
+	obs := ObsFromCtx(ctx)
 	productID := r.URL.Query().Get("id")
 
 	ctx, span := obs.Trace.Start(ctx, "handleProductDetail", trace.WithAttributes(attribute.String("product.id", productID)))
@@ -123,7 +104,7 @@ func handleProductDetail(ctx context.Context, obs *observability.Observability,
 
 	obs.Log.Debug("Searching for product info", "productID", productID)
 
-	productInfo, err := productService.GetProductInfo(ctx, obs, productID)
+	productInfo, err := productService.GetProductInfo(ctx, productID)
 	if err != nil {
 		obs.Log.Error("Failed to fetch product info", "error", err)
 		http.Error(w, "Failed to fetch product info", http.StatusInternalServerError)
@@ -131,7 +112,7 @@ func handleProductDetail(ctx context.Context, obs *observability.Observability,
 	}
 
 	userID := "user123" // Example user ID
-	userInfo, err := userService.GetUserInfo(ctx, obs, userID)
+	userInfo, err := userService.GetUserInfo(ctx, userID)
 	if err != nil {
 		// Not found is a client error, not a server error.
 		// The repository already logged a warning, so we just respond.

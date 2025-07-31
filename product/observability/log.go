@@ -1,17 +1,38 @@
-
 package observability
 
 import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
+
+var (
+	baseLogger *slog.Logger
+	initOnce   sync.Once
+)
+
+// InitLogger initializes the global logger and sets it as the default.
+// It uses sync.Once to ensure it's only run once.
+func InitLogger() *slog.Logger {
+	initOnce.Do(func() {
+		jsonHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			AddSource: true,
+			Level:     slog.LevelDebug,
+		})
+		logger := slog.New(NewAPMHandler(jsonHandler))
+		slog.SetDefault(logger)
+		baseLogger = logger
+	})
+	return baseLogger
+}
 
 // Log wraps the slog logger.
 type Log struct {

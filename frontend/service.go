@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 
-	"frontend-service/observability"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -19,29 +18,31 @@ var (
 )
 
 type ProductService interface {
-	GetProductInfo(ctx context.Context, obs *observability.Observability, productID string) (string, error)
+	GetProductInfo(ctx context.Context, productID string) (string, error)
 }
 
 type UserService interface {
-	GetUserInfo(ctx context.Context, obs *observability.Observability, userID string) (string, error)
+	GetUserInfo(ctx context.Context, userID string) (string, error)
 }
 
 // Implementation for calling external services
 
 type productServiceImpl struct{}
 
-func (s *productServiceImpl) GetProductInfo(ctx context.Context, obs *observability.Observability, productID string) (string, error) {
+func (s *productServiceImpl) GetProductInfo(ctx context.Context, productID string) (string, error) {
+	obs := ObsFromCtx(ctx)
 	ctx, span := obs.Trace.Start(ctx, "ProductService.GetProductInfo", trace.WithAttributes(attribute.String("product.id", productID)))
 	defer span.End()
-	return callProductService(ctx, obs, productID)
+	return callProductService(ctx, productID)
 }
 
 type userServiceImpl struct{}
 
-func (s *userServiceImpl) GetUserInfo(ctx context.Context, obs *observability.Observability, userID string) (string, error) {
+func (s *userServiceImpl) GetUserInfo(ctx context.Context, userID string) (string, error) {
+	obs := ObsFromCtx(ctx)
 	ctx, span := obs.Trace.Start(ctx, "UserService.GetUserInfo", trace.WithAttributes(attribute.String("user.id", userID)))
 	defer span.End()
-	return callUserService(ctx, obs, userID)
+	return callUserService(ctx, userID)
 }
 
 func NewProductService() ProductService {
@@ -52,8 +53,8 @@ func NewUserService() UserService {
 	return &userServiceImpl{}
 }
 
-func callProductService(ctx context.Context, obs *observability.Observability, productID string) (string, error) {
-
+func callProductService(ctx context.Context, productID string) (string, error) {
+	obs := ObsFromCtx(ctx)
 	ctx, span := obs.Trace.Start(ctx, "callProductService", trace.WithAttributes(attribute.String("product.id", productID)))
 	defer span.End()
 
@@ -83,8 +84,8 @@ func callProductService(ctx context.Context, obs *observability.Observability, p
 	return string(body), nil
 }
 
-func callUserService(ctx context.Context, obs *observability.Observability, userID string) (string, error) {
-
+func callUserService(ctx context.Context, userID string) (string, error) {
+	obs := ObsFromCtx(ctx)
 	ctx, span := obs.Trace.Start(ctx, "callUserService", trace.WithAttributes(attribute.String("user.id", userID)))
 	defer span.End()
 

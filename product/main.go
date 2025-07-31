@@ -3,26 +3,24 @@ package main
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"product-service/observability" // <--- IMPORTANT: ensure this is correct
+	"product/observability" // <--- IMPORTANT: ensure this is correct
 )
 
 var (
-	serviceApp    = getEnvOrDefault("APPLICATION", "ecommerce")
-	serviceEnv    = getEnvOrDefault("ENVIRONMENT", "development")
-	collectorURL  = getEnvOrDefault("OTLP_URL", "http://tempo:4318/v1/traces")
-	serviceName   = getEnvOrDefault("SERVICE_NAME", "product-service")
-	EnvPort       = "PORT"
-	DefaultPort   = "8086"
+	serviceApp  = getEnvOrDefault("APPLICATION", "ecommerce")
+	serviceEnv  = getEnvOrDefault("ENVIRONMENT", "development")
+	APMType     = getEnvOrDefault("APM_TYPE", "OTLP")
+	APMURL      = getEnvOrDefault("APM_URL", "http://tempo:4318/v1/traces")
+	serviceName = getEnvOrDefault("SERVICE_NAME", "product-service")
+	EnvPort     = "PORT"
+	DefaultPort = "8086"
 )
 
 // getEnvOrDefault returns the value of the environment variable or a default value if not set
@@ -36,57 +34,41 @@ func getEnvOrDefault(envKey, defaultValue string) string {
 // Removed initTracerProvider - its logic is now in observability.SetupTracing
 
 func main() {
+	// Create a background Observability instance for application-level logging
+	bgObs := observability.NewObservability(context.Background(), serviceName)
+
 	// 1. Initialize Tracer Provider via the observability package
 	// Changed: Call observability.SetupTracing
-	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, collectorURL)
+	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, APMURL, APMType)
 	if err != nil {
-		slog.Default().Error("Failed to initialize TracerProvider via observability package",
-			"context", "main",
-			slog.Any("error", err),
-		)
+		bgObs.Log.Error("Failed to initialize TracerProvider", "error", err)
 		os.Exit(1)
 	}
 	// The defer for shutdown remains here as main is responsible for the overall app lifecycle
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
-			slog.Default().Error("Error shutting down TracerProvider",
-				"context", "main",
-				slog.Any("error", err),
-			)
+			// Use a background obs instance to log shutdown errors
+			bgObs.Log.Error("Error shutting down TracerProvider", "error", err)
 		}
 	}()
-
-	// 2. Configure slog logger
-	jsonHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     slog.LevelDebug,
-	})
-
-	// Wrap the base handler with our APMHandler to inject trace/span IDs and handle errors
-	baseLogger := slog.New(observability.NewAPMHandler(jsonHandler))
-	slog.SetDefault(baseLogger) // Set the default slog logger for general use
 
 	repo := NewProductRepository()
 	service := NewProductService(repo)
 
 	http.HandleFunc("/product", func(w http.ResponseWriter, r *http.Request) {
-		// Extract context from incoming request headers for distributed tracing
-		ctx := otel.GetTextMapPropagator().Extract(r.Context(),
-			propagation.HeaderCarrier(r.Header))
-
-		// Create a new Observability instance for each request
-		obs := observability.NewObservability(ctx, baseLogger, serviceName)
+		// Create a new Observability instance from the request
+		obs := observability.NewObservabilityFromRequest(r, serviceName)
 
 		// Start the root span for the HTTP handler using the Observability instance
-		ctx, span := obs.Trace.Start(ctx, "/product",
+		ctx, span := obs.Trace.Start(obs.Context(), "/product",
 			trace.WithAttributes(
 				attribute.String("http.method", r.Method),
 				attribute.String("http.url", r.URL.String()),
 			))
 		defer span.End()
-
 		// Pass the Observability instance down to the handler function
-		handleProduct(ctx, obs, w, r, service)
+		ctx = observability.CtxWithObs(ctx, obs)
+		handleProduct(ctx, w, r, service)
 	})
 
 	port := getEnvOrDefault(EnvPort, DefaultPort)
@@ -101,18 +83,18 @@ func main() {
 		IdleTimeout:  15 * time.Second,
 	}
 
-	slog.Info("Server running", "address", addr)
+	bgObs.Log.Info("Server running", "address", addr)
 
 	if listenErr := server.ListenAndServe(); listenErr != nil && listenErr != http.ErrServerClosed {
-		slog.Error("Server stopped with an error", "error", listenErr)
+		bgObs.Log.Error("Server stopped with an error", "error", listenErr)
 		os.Exit(1)
 	}
 }
 
 // handleProduct now centralizes all error handling logic.
-func handleProduct(ctx context.Context, obs *observability.Observability,
+func handleProduct(ctx context.Context,
 	w http.ResponseWriter, r *http.Request, service ProductService) {
-
+	obs := observability.ObsFromCtx(ctx)
 	productID := r.URL.Query().Get("id")
 
 	ctx, span := obs.Trace.Start(ctx, "handleProduct", trace.WithAttributes(attribute.String("product.id", productID)))
@@ -126,7 +108,7 @@ func handleProduct(ctx context.Context, obs *observability.Observability,
 
 	obs.Log.Debug("Searching for product info", "productID", productID)
 
-	productInfo, err := service.GetProductInfo(ctx, obs, productID)
+	productInfo, err := service.GetProductInfo(ctx, productID)
 	if err != nil {
 		if errors.Is(err, ErrProductNotFound) {
 			// Not found is a client error, not a server error.
