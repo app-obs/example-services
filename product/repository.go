@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"product/observability"
 	"strings"
 
+	"github.com/app-obs/go/observability"
 	"go.opentelemetry.io/otel/attribute"
 )
 

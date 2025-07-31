@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"product/observability"
 
+	"github.com/app-obs/go/observability"
 	"go.opentelemetry.io/otel/attribute"
 )
 

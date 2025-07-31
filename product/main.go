@@ -7,9 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/app-obs/go/observability"
 	"go.opentelemetry.io/otel/attribute"
-
-	"product/observability" // <--- IMPORTANT: ensure this is correct
 )
 
 var (
