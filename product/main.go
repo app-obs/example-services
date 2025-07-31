@@ -15,7 +15,7 @@ import (
 var (
 	serviceApp  = getEnvOrDefault("APPLICATION", "ecommerce")
 	serviceEnv  = getEnvOrDefault("ENVIRONMENT", "development")
-	APMType     = getEnvOrDefault("APM_TYPE", "OTLP")
+	APMType     = observability.APMType(getEnvOrDefault("APM_TYPE", "OTLP"))
 	APMURL      = getEnvOrDefault("APM_URL", "http://tempo:4318/v1/traces")
 	serviceName = getEnvOrDefault("SERVICE_NAME", "product-service")
 	EnvPort     = "PORT"
@@ -34,11 +34,11 @@ func getEnvOrDefault(envKey, defaultValue string) string {
 
 func main() {
 	// Create a background Observability instance for application-level logging
-	bgObs := observability.NewObservability(context.Background(), serviceName, observability.APMType(APMType))
+	bgObs := observability.NewObservability(context.Background(), serviceName, APMType)
 
 	// 1. Initialize Tracer Provider via the observability package
 	// Changed: Call observability.SetupTracing
-	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, APMURL, APMType)
+	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, APMURL, string(APMType))
 	if err != nil {
 		bgObs.Log.Error("Failed to initialize TracerProvider", "error", err)
 		os.Exit(1)
@@ -56,7 +56,7 @@ func main() {
 
 	http.HandleFunc("/product", func(w http.ResponseWriter, r *http.Request) {
 		// Create a new Observability instance from the request
-		obs := observability.NewObservabilityFromRequest(r, serviceName, observability.APMType(APMType))
+		obs := observability.NewObservabilityFromRequest(r, serviceName, APMType)
 
 		// Start the root span for the HTTP handler using the Observability instance
 		ctx, span := obs.Trace.Start(obs.Context(), "/product")

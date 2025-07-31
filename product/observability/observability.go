@@ -32,7 +32,7 @@ func NewObservability(ctx context.Context, serviceName string, apmType APMType) 
 	obs := &Observability{
 		ctx: ctx,
 	}
-	baseLogger := InitLogger()
+	baseLogger := InitLogger(apmType)
 	obs.Trace = NewTrace(obs, serviceName, apmType) // Pass obs and apmType to Trace
 	obs.Log = NewLog(obs, baseLogger)              // Pass obs to Log
 	return obs

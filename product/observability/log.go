@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -17,16 +18,18 @@ import (
 var (
 	baseLogger *slog.Logger
 	initOnce   sync.Once
+	globalAPMType APMType
 )
 
 // InitLogger initializes the global logger and sets it as the default.
-func InitLogger() *slog.Logger {
+func InitLogger(apmType APMType) *slog.Logger {
 	initOnce.Do(func() {
+		globalAPMType = apmType
 		jsonHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 			AddSource: true,
 			Level:     slog.LevelDebug,
 		})
-		logger := slog.New(NewAPMHandler(jsonHandler))
+		logger := slog.New(NewAPMHandler(jsonHandler, apmType))
 		slog.SetDefault(logger)
 		baseLogger = logger
 	})
@@ -90,30 +93,46 @@ func (l *Log) With(args ...any) *Log {
 
 type APMHandler struct {
 	slog.Handler
-	attrs []slog.Attr
+	attrs   []slog.Attr
+	apmType APMType // Add apmType field
 }
 
-func NewAPMHandler(baseHandler slog.Handler) *APMHandler {
+func NewAPMHandler(baseHandler slog.Handler, apmType APMType) *APMHandler {
 	return &APMHandler{
 		Handler: baseHandler,
+		apmType: apmType,
 	}
 }
 
 func (h *APMHandler) Handle(ctx context.Context, r slog.Record) error {
-	span := trace.SpanFromContext(ctx)
-	if !span.IsRecording() {
-		return h.Handler.Handle(ctx, r)
-	}
-
 	// Combine handler attributes with record attributes
-	attrs := make([]attribute.KeyValue, 0, len(h.attrs)+r.NumAttrs())
-	for _, a := range h.attrs {
-		attrs = append(attrs, toOtelAttribute(a))
-	}
+	attrs := make([]slog.Attr, 0, len(h.attrs)+r.NumAttrs())
+	attrs = append(attrs, h.attrs...)
 	r.Attrs(func(a slog.Attr) bool {
-		attrs = append(attrs, toOtelAttribute(a))
+		attrs = append(attrs, a)
 		return true
 	})
+
+	switch h.apmType {
+	case OTLP:
+		h.handleOTLP(ctx, r, attrs)
+	case DataDog:
+		h.handleDataDog(ctx, r, attrs)
+	}
+
+	return h.Handler.Handle(ctx, r)
+}
+
+func (h *APMHandler) handleOTLP(ctx context.Context, r slog.Record, slogAttrs []slog.Attr) {
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	otelAttrs := make([]attribute.KeyValue, 0, len(slogAttrs))
+	for _, a := range slogAttrs {
+		otelAttrs = append(otelAttrs, toOtelAttribute(a))
+	}
 
 	if r.Level >= slog.LevelError {
 		var loggedErr error
@@ -131,13 +150,39 @@ func (h *APMHandler) Handle(ctx context.Context, r slog.Record) error {
 			loggedErr = errors.New(r.Message)
 		}
 
-		span.RecordError(loggedErr, trace.WithAttributes(attrs...))
+		span.RecordError(loggedErr, trace.WithAttributes(otelAttrs...))
 		span.SetStatus(codes.Error, r.Message)
 	} else {
-		span.AddEvent(r.Message, trace.WithAttributes(attrs...))
+		span.AddEvent(r.Message, trace.WithAttributes(otelAttrs...))
 	}
+}
 
-	return h.Handler.Handle(ctx, r)
+func (h *APMHandler) handleDataDog(ctx context.Context, r slog.Record, attrs []slog.Attr) {
+	if ddSpan, ok := tracer.SpanFromContext(ctx); ok {
+		for _, a := range attrs {
+			ddSpan.SetTag(a.Key, a.Value.String())
+		}
+
+		if r.Level >= slog.LevelError {
+			var loggedErr error
+			r.Attrs(func(attr slog.Attr) bool {
+				if attr.Key == "error" {
+					if errVal, ok := attr.Value.Any().(error); ok {
+						loggedErr = errVal
+						return false
+					}
+				}
+				return true
+			})
+
+			if loggedErr == nil {
+				loggedErr = errors.New(r.Message)
+			}
+			ddSpan.SetTag("error", loggedErr)
+		} else {
+			ddSpan.SetTag("event", r.Message)
+		}
+	}
 }
 
 func toOtelAttribute(a slog.Attr) attribute.KeyValue {
@@ -165,6 +210,7 @@ func (h *APMHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &APMHandler{
 		Handler: h.Handler.WithAttrs(attrs),
 		attrs:   newAttrs,
+		apmType: h.apmType,
 	}
 }
 
@@ -172,6 +218,7 @@ func (h *APMHandler) WithGroup(name string) slog.Handler {
 	return &APMHandler{
 		Handler: h.Handler.WithGroup(name),
 		attrs:   h.attrs,
+		apmType: h.apmType,
 	}
 }
 
