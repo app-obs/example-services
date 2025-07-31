@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
+	"github.com/app-obs/go/observability"
 )
 
 // ErrUserNotFound is returned when a user is not found.
@@ -20,8 +19,9 @@ type UserRepository interface {
 type userRepositoryImpl struct{}
 
 func (r *userRepositoryImpl) GetUserByID(ctx context.Context, id string) (string, error) {
-	obs := ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "UserRepository.GetUserByID", trace.WithAttributes(attribute.String("user.id", id)))
+	obs := observability.ObsFromCtx(ctx)
+	ctx, span := obs.Trace.Start(ctx, "UserRepository.GetUserByID")
+	span.SetAttributes(observability.String("user.id", id))
 	defer span.End()
 
 	obs.Log.With(

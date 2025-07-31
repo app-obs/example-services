@@ -3,8 +3,7 @@ package main
 import (
 	"context"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
+	"github.com/app-obs/go/observability"
 )
 
 type UserService interface {
@@ -16,8 +15,9 @@ type userServiceImpl struct {
 }
 
 func (s *userServiceImpl) GetUserInfo(ctx context.Context, userID string) (string, error) {
-	obs := ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "UserService.GetUserInfo", trace.WithAttributes(attribute.String("user.id", userID)))
+	obs := observability.ObsFromCtx(ctx)
+	ctx, span := obs.Trace.Start(ctx, "UserService.GetUserInfo")
+	span.SetAttributes(observability.String("user.id", userID))
 	defer span.End()
 
 	obs.Log.With(

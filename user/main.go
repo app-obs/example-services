@@ -7,15 +7,13 @@ import (
 	"os"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-
-	"user-service/observability" // <--- IMPORTANT: ensure this is correct
+	"github.com/app-obs/go/observability"
 )
 
 var (
 	serviceApp  = getEnvOrDefault("APPLICATION", "ecommerce")
 	serviceEnv  = getEnvOrDefault("ENVIRONMENT", "development")
+	APMType     = getEnvOrDefault("APM_TYPE", "OTLP")
 	APMURL      = getEnvOrDefault("APM_URL", "http://tempo:4318/v1/traces")
 	serviceName = getEnvOrDefault("SERVICE_NAME", "user-service")
 	EnvPort     = "PORT"
@@ -32,10 +30,10 @@ func getEnvOrDefault(envKey, defaultValue string) string {
 
 func main() {
 	// Create a background Observability instance for application-level logging
-	bgObs := observability.NewObservability(context.Background(), serviceName)
+	bgObs := observability.NewObservability(context.Background(), serviceName, APMType)
 
 	// 1. Initialize Tracer Provider via the observability package
-	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, APMURL)
+	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, APMURL, APMType)
 	if err != nil {
 		bgObs.Log.Error("Failed to initialize TracerProvider", "error", err)
 		os.Exit(1)
@@ -51,18 +49,18 @@ func main() {
 
 	http.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
 		// Create a new Observability instance from the request
-		obs := observability.NewObservabilityFromRequest(r, serviceName)
+		obs := observability.NewObservabilityFromRequest(r, serviceName, APMType)
 
 		// Start the root span for the HTTP handler using the Observability instance
-		ctx, span := obs.Trace.Start(obs.Context(), "/user",
-			trace.WithAttributes(
-				attribute.String("http.method", r.Method),
-				attribute.String("http.url", r.URL.String()),
-			))
+		ctx, span := obs.Trace.Start(obs.Context(), "/user")
+		span.SetAttributes(
+			observability.String("http.method", r.Method),
+			observability.String("http.url", r.URL.String()),
+		)
 		defer span.End()
 
 		// Pass the Observability instance down to the handler function
-		ctx = CtxWithObs(ctx, obs)
+		ctx = observability.CtxWithObs(ctx, obs)
 		handleUser(ctx, w, r, service)
 	})
 
@@ -89,10 +87,11 @@ func main() {
 // handleUser now centralizes all error handling logic.
 func handleUser(ctx context.Context,
 	w http.ResponseWriter, r *http.Request, service UserService) {
-	obs := ObsFromCtx(ctx)
+	obs := observability.ObsFromCtx(ctx)
 	userID := r.URL.Query().Get("id")
 
-	ctx, span := obs.Trace.Start(ctx, "handleUser", trace.WithAttributes(attribute.String("user.id", userID)))
+	ctx, span := obs.Trace.Start(ctx, "handleUser")
+	span.SetAttributes(observability.String("user.id", userID))
 	defer span.End()
 
 	if userID == "" {
