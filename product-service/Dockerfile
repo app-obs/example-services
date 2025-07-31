@@ -8,14 +8,15 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 # Try to cache modules. This is only possible when go.mod and go.sum is correct. 
-# If not, you have to enable "Download dependencies" below
+# If not, you have to enable "rebuild go.mod" below
 COPY go.mod go.sum .
 RUN go mod download
  
 # Copy source code
 COPY . .
 
-# Download dependencies
+# Uncomment these lines to rebuild go.mod, go.sum, and download missing dependencies
+# helps when go.mod and go.sum is not updated yet in the repo
 #RUN rm -f go.mod go.sum && \
 #    go mod init product-service && \
 #    go mod tidy

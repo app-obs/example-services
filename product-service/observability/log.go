@@ -112,29 +112,29 @@ func (h *APMHandler) Handle(ctx context.Context, r slog.Record) error {
 
 		// If it's an error level, record the error on the span
 		if r.Level == slog.LevelError {
-			// Check if an error was explicitly passed as an attribute using slog.Any("error", err)
 			var loggedErr error
 			r.Attrs(func(attr slog.Attr) bool {
-				if attr.Key == "error" { // We'll use "error" as the key for explicit errors
+				if attr.Key == "error" {
 					if errVal, ok := attr.Value.Any().(error); ok {
 						loggedErr = errVal
-						return false // Found it, stop iterating
+						return false // Stop iterating
 					}
 				}
-				return true // Continue iterating
+				return true
 			})
 
+			// Convert all attributes for the span event.
+			apmAttrs := convertSlogAttrsToAPMAttrsFromSlice(allAttrs)
+
 			if loggedErr != nil {
-				span.RecordError(loggedErr, trace.WithAttributes(
-					attribute.String("event", "log_error"),
-					attribute.String("message", r.Message),
-				))
+				// Add standard error event attributes.
+				apmAttrs = append(apmAttrs, attribute.String("event", "log_error"), attribute.String("message", r.Message))
+				span.RecordError(loggedErr, trace.WithAttributes(apmAttrs...))
 				span.SetStatus(codes.Error, loggedErr.Error())
 			} else {
-				// Record the log message itself as an error if no specific error object
-				span.RecordError(errors.New(r.Message), trace.WithAttributes(
-					attribute.String("event", "log_error"),
-				))
+				// Record the log message itself as an error if no specific error object.
+				apmAttrs = append(apmAttrs, attribute.String("event", "log_error"))
+				span.RecordError(errors.New(r.Message), trace.WithAttributes(apmAttrs...))
 				span.SetStatus(codes.Error, r.Message)
 			}
 		} else if r.Level == slog.LevelInfo || r.Level == slog.LevelWarn {

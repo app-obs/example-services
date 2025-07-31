@@ -6,7 +6,6 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"log/slog"
 )
 
 type ProductService interface {
@@ -30,7 +29,7 @@ func (s *productServiceImpl) GetProductInfo(ctx context.Context, obs *observabil
 	if err != nil {
 		obs.Log.With(
 			"productID", productID,
-			slog.Any("error", err),
+			"error", err,
 		).Error("Error fetching product")
 		return "", err
 	}

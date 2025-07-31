@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 
 	"product-service/observability" // <--- IMPORTANT: ensure this is correct
@@ -106,48 +105,39 @@ func main() {
 	}
 }
 
-// handleProduct now receives the Observability struct
+// handleProduct now centralizes all error handling logic.
 func handleProduct(ctx context.Context, obs *observability.Observability,
 	w http.ResponseWriter, r *http.Request, service ProductService) {
 
 	productID := r.URL.Query().Get("id")
 
-	// Start a new span using obs.Trace
 	ctx, span := obs.Trace.Start(ctx, "handleProduct", trace.WithAttributes(attribute.String("product.id", productID)))
 	defer span.End()
 
 	if productID == "" {
-		// Log using obs.Log, context is implicitly handled
-		obs.Log.With(
-			slog.Any("error", "Missing product ID"),
-		).Error("Missing product ID")
-		http.Error(w, "Parameter 'id' produk diperlukan", http.StatusBadRequest)
+		obs.Log.Error("Missing product ID")
+		http.Error(w, "Missing product ID", http.StatusBadRequest)
 		return
 	}
 
-	obs.Log.With(
-		"productID", productID,
-	).Debug("Searching for product info")
+	obs.Log.Debug("Searching for product info", "productID", productID)
 
-	// Service Layer: Get Product Info (with trace)
-	// Pass the Observability struct down to the service layer
 	productInfo, err := service.GetProductInfo(ctx, obs, productID)
 	if err != nil {
-		obs.Log.With(
-			"productID", productID,
-			slog.Any("error", err),
-		).Error("Failed to fetch product info")
-		http.Error(w, "Gagal mendapatkan info produk", http.StatusInternalServerError)
+		if errors.Is(err, ErrProductNotFound) {
+			// Not found is a client error, not a server error.
+			// The repository already logged a warning, so we just respond.
+			http.Error(w, "Product not found", http.StatusNotFound)
+		} else {
+			// For all other errors, log them as server errors and respond.
+			obs.Log.Error("Failed to fetch product info", "error", err)
+			http.Error(w, "Failed to fetch product info", http.StatusInternalServerError)
+		}
 		return
 	}
-	obs.Log.With(
-		"productID", productID,
-		"productInfo", productInfo,
-	).Info("Product info fetched")
 
-	obs.Log.With(
-		"productID", productID,
-	).Debug("Successfully processed request")
-	fmt.Fprint(w, productInfo)
+	obs.Log.Info("Product info fetched successfully", "productInfo", productInfo)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(productInfo))
 }
-

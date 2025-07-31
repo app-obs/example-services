@@ -2,11 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"product-service/observability"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// ErrProductNotFound is returned when a product is not found.
+var ErrProductNotFound = errors.New("product not found")
 
 type ProductRepository interface {
 	GetProductByID(ctx context.Context, obs *observability.Observability, id string) (string, error)
@@ -23,15 +29,15 @@ func (r *productRepositoryImpl) GetProductByID(ctx context.Context, obs *observa
 		"productID", id,
 	).Debug("Fetching product data")
 
-	// Simulate DB fetch
-	// if id == "123" {
-	// 	obs.Log.With("productID", id).Debug("Product found in repository")
-	// 	return "Product ABC", nil
-	// }
-	// obs.Log.With("productID", id).Warn("Product not found in repository")
-	// return "", fmt.Errorf("product not found: %s", id)
+	// Simulate DB fetch: if the ID starts with "missing-", return not found.
+	if strings.HasPrefix(id, "missing-") {
+		obs.Log.With("productID", id).Warn("Product not found in repository")
+		return "", ErrProductNotFound
+	}
+
+	// Otherwise, return a dummy product with its ID.
 	obs.Log.With("productID", id).Debug("Product found in repository")
-	return "Product ABC", nil
+	return fmt.Sprintf("Product ABC with ID %s", id), nil
 }
 
 func NewProductRepository() ProductRepository {
