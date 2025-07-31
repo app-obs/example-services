@@ -5,6 +5,7 @@ services:
       - "${PRODUCT_PORT}:${PRODUCT_PORT}"
     environment:
       - PORT=${PRODUCT_PORT}
+      - APM_TYPE=${APM_TYPE}
       - APM_URL=${APM_URL}
     labels:
       service: ${PRODUCT_SERVICE}
@@ -21,6 +22,7 @@ services:
       - "${USER_PORT}:${USER_PORT}"
     environment:
       - PORT=${USER_PORT}
+      - APM_TYPE=${APM_TYPE}
       - APM_URL=${APM_URL}
     labels:
       service: ${USER_SERVICE}
@@ -37,6 +39,7 @@ services:
       - "${FRONTEND_PORT}:${FRONTEND_PORT}"
     environment:
       - PORT=${FRONTEND_PORT}
+      - APM_TYPE=${APM_TYPE}
       - APM_URL=${APM_URL}
       - PRODUCT_SERVICE_URL=http://${PRODUCT_SERVICE}:${PRODUCT_PORT}
       - USER_SERVICE_URL=http://${USER_SERVICE}:${USER_PORT}

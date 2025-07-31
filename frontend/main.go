@@ -13,7 +13,7 @@ import (
 var (
 	serviceApp  = getEnvOrDefault("APPLICATION", "ecommerce")
 	serviceEnv  = getEnvOrDefault("ENVIRONMENT", "development")
-	APMType     = getEnvOrDefault("APM_TYPE", "OTLP")
+	APMType     = getEnvOrDefault("APM_TYPE", "none")
 	APMURL      = getEnvOrDefault("APM_URL", "http://tempo:4318/v1/traces")
 	serviceName = getEnvOrDefault("SERVICE_NAME", "frontend-service")
 	EnvPort     = "PORT"
