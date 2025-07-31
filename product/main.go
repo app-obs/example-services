@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/app-obs/go/observability"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 var (
@@ -60,8 +59,8 @@ func main() {
 		// Start the root span for the HTTP handler using the Observability instance
 		ctx, span := obs.Trace.Start(obs.Context(), "/product")
 		span.SetAttributes(
-			attribute.String("http.method", r.Method),
-			attribute.String("http.url", r.URL.String()),
+			observability.String("http.method", r.Method),
+			observability.String("http.url", r.URL.String()),
 		)
 		defer span.End()
 		// Pass the Observability instance down to the handler function
@@ -96,7 +95,7 @@ func handleProduct(ctx context.Context,
 	productID := r.URL.Query().Get("id")
 
 	ctx, span := obs.Trace.Start(ctx, "handleProduct")
-	span.SetAttributes(attribute.String("product.id", productID))
+	span.SetAttributes(observability.String("product.id", productID))
 	defer span.End()
 
 	if productID == "" {
