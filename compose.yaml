@@ -16,7 +16,7 @@ services:
         loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
         labels: service,application,environment
   user:
-    build: ./user-service
+    build: ./${USER_SERVICE}
     ports:
       - "${USER_PORT}:${USER_PORT}"
     environment:
@@ -32,14 +32,14 @@ services:
         loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
         labels: service,application,environment
   frontend:
-    build: ./frontend-service
+    build: ./${FRONTEND_SERVICE}
     ports:
       - "${FRONTEND_PORT}:${FRONTEND_PORT}"
     environment:
       - PORT=${FRONTEND_PORT}
       - APM_URL=${APM_URL}
-      - PRODUCT_SERVICE_URL=http://product-service:${PRODUCT_PORT}
-      - USER_SERVICE_URL=http://user-service:${USER_PORT}
+      - PRODUCT_SERVICE_URL=http://${PRODUCT_SERVICE}:${PRODUCT_PORT}
+      - USER_SERVICE_URL=http://${USER_SERVICE}:${USER_PORT}
     labels:
       service: ${FRONTEND_SERVICE}
       application: ${APPLICATION}

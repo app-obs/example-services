@@ -62,10 +62,10 @@ func (t *Trace) Start(ctx context.Context, spanName string, opts ...trace.SpanSt
 }
 
 // SetupTracing initializes and configures the global OpenTelemetry TracerProvider.
-func SetupTracing(ctx context.Context, serviceName, serviceApp, serviceEnv, collectorURL string) (*sdktrace.TracerProvider, error) {
+func SetupTracing(ctx context.Context, serviceName, serviceApp, serviceEnv, APMURL string) (*sdktrace.TracerProvider, error) {
 	// Create OTLP HTTP Exporter
 	client := otlptracehttp.NewClient(
-		otlptracehttp.WithEndpointURL(collectorURL),
+		otlptracehttp.WithEndpointURL(APMURL),
 	)
 	exporter, err := otlptrace.New(ctx, client)
 	if err != nil {
@@ -95,7 +95,7 @@ func SetupTracing(ctx context.Context, serviceName, serviceApp, serviceEnv, coll
 
 	slog.Info("OpenTelemetry TracerProvider initialized successfully",
 		"serviceName", serviceName,
-		"collectorURL", collectorURL,
+		"APMURL", APMURL,
 	)
 
 	return tp, nil

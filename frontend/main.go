@@ -14,12 +14,12 @@ import (
 )
 
 var (
-	serviceApp   = getEnvOrDefault("APPLICATION", "ecommerce")
-	serviceEnv   = getEnvOrDefault("ENVIRONMENT", "development")
-	collectorURL = getEnvOrDefault("OTLP_URL", "http://tempo:4318/v1/traces")
-	serviceName  = getEnvOrDefault("SERVICE_NAME", "frontend-service")
-	EnvPort      = "PORT"
-	DefaultPort  = "8085"
+	serviceApp  = getEnvOrDefault("APPLICATION", "ecommerce")
+	serviceEnv  = getEnvOrDefault("ENVIRONMENT", "development")
+	APMURL      = getEnvOrDefault("APM_URL", "http://tempo:4318/v1/traces")
+	serviceName = getEnvOrDefault("SERVICE_NAME", "frontend-service")
+	EnvPort     = "PORT"
+	DefaultPort = "8085"
 )
 
 // getEnvOrDefault returns the value of the environment variable or a default value if not set
@@ -35,7 +35,7 @@ func main() {
 	bgObs := observability.NewObservability(context.Background(), serviceName)
 
 	// 1. Initialize Tracer Provider via the observability package
-	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, collectorURL)
+	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, APMURL)
 	if err != nil {
 		bgObs.Log.Error("Failed to initialize TracerProvider", "error", err)
 		os.Exit(1)

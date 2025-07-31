@@ -105,6 +105,12 @@ func (h *APMHandler) Handle(ctx context.Context, r slog.Record) error {
 		return h.Handler.Handle(ctx, r)
 	}
 
+	attrs := make([]attribute.KeyValue, 0, r.NumAttrs())
+	r.Attrs(func(a slog.Attr) bool {
+		attrs = append(attrs, attribute.String(a.Key, a.Value.String()))
+		return true
+	})
+
 	if r.Level >= slog.LevelError {
 		var loggedErr error
 		r.Attrs(func(attr slog.Attr) bool {
@@ -121,14 +127,9 @@ func (h *APMHandler) Handle(ctx context.Context, r slog.Record) error {
 			loggedErr = errors.New(r.Message)
 		}
 
-		span.RecordError(loggedErr)
+		span.RecordError(loggedErr, trace.WithAttributes(attrs...))
 		span.SetStatus(codes.Error, r.Message)
 	} else {
-		attrs := make([]attribute.KeyValue, 0, r.NumAttrs())
-		r.Attrs(func(a slog.Attr) bool {
-			attrs = append(attrs, attribute.String(a.Key, a.Value.String()))
-			return true
-		})
 		span.AddEvent(r.Message, trace.WithAttributes(attrs...))
 	}
 
