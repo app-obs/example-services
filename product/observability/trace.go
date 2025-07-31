@@ -66,10 +66,13 @@ func (t *OTelTracer) Start(ctx context.Context, spanName string) (context.Contex
 // DataDogSpan is a wrapper around ddtrace.Span.
 type DataDogSpan struct {
 	tracer.Span
+	obs       *Observability
+	parentCtx context.Context
 }
 
 // End ends the span.
 func (s *DataDogSpan) End() {
+	s.obs.SetContext(s.parentCtx)
 	s.Finish()
 }
 
@@ -89,12 +92,20 @@ func (s *DataDogSpan) SetStatus(code codes.Code, description string) {
 }
 
 // DataDogTracer wraps the DataDog tracer.
-type DataDogTracer struct{}
+type DataDogTracer struct {
+	obs *Observability
+}
 
 // Start creates a new span.
 func (t *DataDogTracer) Start(ctx context.Context, spanName string) (context.Context, Span) {
+	parentCtx := t.obs.Context()
 	span, newCtx := tracer.StartSpanFromContext(ctx, spanName)
-	return newCtx, &DataDogSpan{Span: span}
+	t.obs.SetContext(newCtx)
+	return newCtx, &DataDogSpan{
+		Span:      span,
+		obs:       t.obs,
+		parentCtx: parentCtx,
+	}
 }
 
 // Trace holds the active tracer.
@@ -112,7 +123,9 @@ func NewTrace(obs *Observability, serviceName string, apmType APMType) *Trace {
 			tracer: otel.Tracer(serviceName),
 		}
 	case DataDog:
-		t = &DataDogTracer{}
+		t = &DataDogTracer{
+			obs: obs,
+		}
 	}
 	return &Trace{
 		Tracer: t,
@@ -159,7 +172,7 @@ func (d *dataDogShutdowner) Shutdown(ctx context.Context) error {
 }
 
 // setupOTLP configures and initializes the OpenTelemetry TracerProvider.
-func setupOTLP(ctx context.Context, serviceName, serviceApp, serviceEnv, apmURL string) (*sdktrace.TracerProvider, error) {
+func setupOTLP(ctx context.Context, serviceName, serviceApp, serviceEnv, apmURL string) (Shutdowner, error) {
 	exporter, err := newOTLPExporter(ctx, apmURL)
 	if err != nil {
 		return nil, err
