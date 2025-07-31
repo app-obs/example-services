@@ -7,15 +7,13 @@ import (
 	"os"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-
-	"frontend-service/observability" // <--- IMPORTANT: ensure this is correct
+	"github.com/app-obs/go/observability"
 )
 
 var (
 	serviceApp  = getEnvOrDefault("APPLICATION", "ecommerce")
 	serviceEnv  = getEnvOrDefault("ENVIRONMENT", "development")
+	APMType     = getEnvOrDefault("APM_TYPE", "OTLP")
 	APMURL      = getEnvOrDefault("APM_URL", "http://tempo:4318/v1/traces")
 	serviceName = getEnvOrDefault("SERVICE_NAME", "frontend-service")
 	EnvPort     = "PORT"
@@ -32,10 +30,10 @@ func getEnvOrDefault(envKey, defaultValue string) string {
 
 func main() {
 	// Create a background Observability instance for application-level logging
-	bgObs := observability.NewObservability(context.Background(), serviceName)
+	bgObs := observability.NewObservability(context.Background(), serviceName, APMType)
 
 	// 1. Initialize Tracer Provider via the observability package
-	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, APMURL)
+	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, APMURL, APMType)
 	if err != nil {
 		bgObs.Log.Error("Failed to initialize TracerProvider", "error", err)
 		os.Exit(1)
@@ -51,18 +49,18 @@ func main() {
 
 	http.HandleFunc("/product-detail", func(w http.ResponseWriter, r *http.Request) {
 		// Create a new Observability instance from the request
-		obs := observability.NewObservabilityFromRequest(r, serviceName)
+		obs := observability.NewObservabilityFromRequest(r, serviceName, APMType)
 
 		// Start the root span for the HTTP handler using the Observability instance
-		ctx, span := obs.Trace.Start(obs.Context(), "/product-detail",
-			trace.WithAttributes(
-				attribute.String("http.method", r.Method),
-				attribute.String("http.url", r.URL.String()),
-			))
+		ctx, span := obs.Trace.Start(obs.Context(), "/product-detail")
+		span.SetAttributes(
+			observability.String("http.method", r.Method),
+			observability.String("http.url", r.URL.String()),
+		)
 		defer span.End()
 
 		// Pass the Observability instance down to the handler function
-		ctx = CtxWithObs(ctx, obs)
+		ctx = observability.CtxWithObs(ctx, obs)
 		handleProductDetail(ctx, w, r, productService, userService)
 	})
 
@@ -90,10 +88,11 @@ func main() {
 func handleProductDetail(ctx context.Context,
 	w http.ResponseWriter, r *http.Request,
 	productService ProductService, userService UserService) {
-	obs := ObsFromCtx(ctx)
+	obs := observability.ObsFromCtx(ctx)
 	productID := r.URL.Query().Get("id")
 
-	ctx, span := obs.Trace.Start(ctx, "handleProductDetail", trace.WithAttributes(attribute.String("product.id", productID)))
+	ctx, span := obs.Trace.Start(ctx, "handleProductDetail")
+	span.SetAttributes(observability.String("product.id", productID))
 	defer span.End()
 
 	if productID == "" {

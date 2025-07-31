@@ -6,10 +6,9 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/app-obs/go/observability"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -30,8 +29,9 @@ type UserService interface {
 type productServiceImpl struct{}
 
 func (s *productServiceImpl) GetProductInfo(ctx context.Context, productID string) (string, error) {
-	obs := ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "ProductService.GetProductInfo", trace.WithAttributes(attribute.String("product.id", productID)))
+	obs := observability.ObsFromCtx(ctx)
+	ctx, span := obs.Trace.Start(ctx, "ProductService.GetProductInfo")
+	span.SetAttributes(observability.String("product.id", productID))
 	defer span.End()
 	return callProductService(ctx, productID)
 }
@@ -39,8 +39,9 @@ func (s *productServiceImpl) GetProductInfo(ctx context.Context, productID strin
 type userServiceImpl struct{}
 
 func (s *userServiceImpl) GetUserInfo(ctx context.Context, userID string) (string, error) {
-	obs := ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "UserService.GetUserInfo", trace.WithAttributes(attribute.String("user.id", userID)))
+	obs := observability.ObsFromCtx(ctx)
+	ctx, span := obs.Trace.Start(ctx, "UserService.GetUserInfo")
+	span.SetAttributes(observability.String("user.id", userID))
 	defer span.End()
 	return callUserService(ctx, userID)
 }
@@ -54,8 +55,9 @@ func NewUserService() UserService {
 }
 
 func callProductService(ctx context.Context, productID string) (string, error) {
-	obs := ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "callProductService", trace.WithAttributes(attribute.String("product.id", productID)))
+	obs := observability.ObsFromCtx(ctx)
+	ctx, span := obs.Trace.Start(ctx, "callProductService")
+	span.SetAttributes(observability.String("product.id", productID))
 	defer span.End()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/product?id=%s", productServiceURL, productID), nil)
@@ -85,8 +87,9 @@ func callProductService(ctx context.Context, productID string) (string, error) {
 }
 
 func callUserService(ctx context.Context, userID string) (string, error) {
-	obs := ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "callUserService", trace.WithAttributes(attribute.String("user.id", userID)))
+	obs := observability.ObsFromCtx(ctx)
+	ctx, span := obs.Trace.Start(ctx, "callUserService")
+	span.SetAttributes(observability.String("user.id", userID))
 	defer span.End()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/user?id=%s", userServiceURL, userID), nil)
