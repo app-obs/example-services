@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -90,17 +91,20 @@ func main() {
 
 	port := getEnvOrDefault(EnvPort, DefaultPort)
 	addr := ":" + port
-	slog.With( // Using slog.Default() here, which is set to baseLogger
-		"context", "main",
-		"serviceName", serviceName,
-		"address", addr,
-	).Info("Server running")
 
-	if listenErr := http.ListenAndServe(addr, nil); listenErr != nil {
-		slog.With( // Using slog.Default() here
-			"context", "main",
-			slog.Any("error", listenErr),
-		).Error("Server stopped with an error")
+	// Create a server with explicit timeouts for better security and resilience.
+	server := &http.Server{
+		Addr:         addr,
+		Handler:      nil, // Use DefaultServeMux
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  15 * time.Second,
+	}
+
+	slog.Info("Server running", "address", addr)
+
+	if listenErr := server.ListenAndServe(); listenErr != nil && listenErr != http.ErrServerClosed {
+		slog.Error("Server stopped with an error", "error", listenErr)
 		os.Exit(1)
 	}
 }
