@@ -105,9 +105,13 @@ func (h *APMHandler) Handle(ctx context.Context, r slog.Record) error {
 		return h.Handler.Handle(ctx, r)
 	}
 
-	attrs := make([]attribute.KeyValue, 0, r.NumAttrs())
+	// Combine handler attributes with record attributes
+	attrs := make([]attribute.KeyValue, 0, len(h.attrs)+r.NumAttrs())
+	for _, a := range h.attrs {
+		attrs = append(attrs, toOtelAttribute(a))
+	}
 	r.Attrs(func(a slog.Attr) bool {
-		attrs = append(attrs, attribute.String(a.Key, a.Value.String()))
+		attrs = append(attrs, toOtelAttribute(a))
 		return true
 	})
 
@@ -136,10 +140,27 @@ func (h *APMHandler) Handle(ctx context.Context, r slog.Record) error {
 	return h.Handler.Handle(ctx, r)
 }
 
+func toOtelAttribute(a slog.Attr) attribute.KeyValue {
+	switch a.Value.Kind() {
+	case slog.KindString:
+		return attribute.String(a.Key, a.Value.String())
+	case slog.KindInt64:
+		return attribute.Int64(a.Key, a.Value.Int64())
+	case slog.KindUint64:
+		return attribute.Int64(a.Key, int64(a.Value.Uint64()))
+	case slog.KindFloat64:
+		return attribute.Float64(a.Key, a.Value.Float64())
+	case slog.KindBool:
+		return attribute.Bool(a.Key, a.Value.Bool())
+	default:
+		return attribute.String(a.Key, a.Value.String())
+	}
+}
+
 func (h *APMHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	newAttrs := make([]slog.Attr, 0, len(h.attrs)+len(attrs))
-	newAttrs = append(newAttrs, h.attrs...)
-	newAttrs = append(newAttrs, attrs...)
+	newAttrs := make([]slog.Attr, len(h.attrs)+len(attrs))
+	copy(newAttrs, h.attrs)
+	copy(newAttrs[len(h.attrs):], attrs)
 
 	return &APMHandler{
 		Handler: h.Handler.WithAttrs(attrs),
@@ -148,9 +169,13 @@ func (h *APMHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 }
 
 func (h *APMHandler) WithGroup(name string) slog.Handler {
-	return NewAPMHandler(h.Handler.WithGroup(name))
+	return &APMHandler{
+		Handler: h.Handler.WithGroup(name),
+		attrs:   h.attrs,
+	}
 }
 
 func (h *APMHandler) Enabled(ctx context.Context, level slog.Level) bool {
 	return h.Handler.Enabled(ctx, level)
 }
+
