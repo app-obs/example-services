@@ -15,7 +15,7 @@ import (
 var (
 	serviceApp  = getEnvOrDefault("APPLICATION", "ecommerce")
 	serviceEnv  = getEnvOrDefault("ENVIRONMENT", "development")
-	APMType     = observability.APMType(getEnvOrDefault("APM_TYPE", "OTLP"))
+	APMType     = getEnvOrDefault("APM_TYPE", "OTLP")
 	APMURL      = getEnvOrDefault("APM_URL", "http://tempo:4318/v1/traces")
 	serviceName = getEnvOrDefault("SERVICE_NAME", "product-service")
 	EnvPort     = "PORT"
@@ -38,7 +38,7 @@ func main() {
 
 	// 1. Initialize Tracer Provider via the observability package
 	// Changed: Call observability.SetupTracing
-	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, APMURL, string(APMType))
+	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, APMURL, APMType)
 	if err != nil {
 		bgObs.Log.Error("Failed to initialize TracerProvider", "error", err)
 		os.Exit(1)

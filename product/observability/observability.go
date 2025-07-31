@@ -22,19 +22,28 @@ type Observability struct {
 
 // NewObservabilityFromRequest creates a new Observability instance by extracting the
 // trace context from an incoming HTTP request.
-func NewObservabilityFromRequest(r *http.Request, serviceName string, apmType APMType) *Observability {
-	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+func NewObservabilityFromRequest(r *http.Request, serviceName string, apmType string) *Observability {
+	var ctx context.Context
+	typedAPMType := APMType(apmType)
+	// For OTLP, we need to manually extract the context from the headers.
+	// For DataDog, the tracer does this automatically when starting a span.
+	if typedAPMType == OTLP {
+		ctx = otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+	} else {
+		ctx = r.Context()
+	}
 	return NewObservability(ctx, serviceName, apmType)
 }
 
 // NewObservability creates a new Observability instance.
-func NewObservability(ctx context.Context, serviceName string, apmType APMType) *Observability {
+func NewObservability(ctx context.Context, serviceName string, apmType string) *Observability {
+	typedAPMType := APMType(apmType)
 	obs := &Observability{
 		ctx: ctx,
 	}
-	baseLogger := InitLogger(apmType)
-	obs.Trace = NewTrace(obs, serviceName, apmType) // Pass obs and apmType to Trace
-	obs.Log = NewLog(obs, baseLogger)              // Pass obs to Log
+	baseLogger := InitLogger(typedAPMType)
+	obs.Trace = NewTrace(obs, serviceName, typedAPMType) // Pass obs and apmType to Trace
+	obs.Log = NewLog(obs, baseLogger)                   // Pass obs to Log
 	return obs
 }
 

@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Span is an interface for a trace span.
+// Span is a unified interface for a trace span, wrapping both OTel and DataDog spans.
 type Span interface {
 	End()
 	AddEvent(string, ...trace.EventOption)
@@ -31,118 +31,109 @@ type Tracer interface {
 	Start(ctx context.Context, spanName string) (context.Context, Span)
 }
 
-// OTelSpan is a wrapper around trace.Span that automatically manages context restoration.
-type OTelSpan struct {
-	trace.Span
-	obs       *Observability
-	parentCtx context.Context
+// unifiedSpan is a concrete implementation of the Span interface.
+type unifiedSpan struct {
+	trace.Span    // OTel span
+	ddSpan     *tracer.Span
+	obs        *Observability
+	parentCtx  context.Context
+	apmType    APMType
 }
 
-// End restores the parent context in the Observability instance and then ends the span.
-func (s *OTelSpan) End() {
+// End ends the span based on the APM type.
+func (s *unifiedSpan) End() {
 	s.obs.SetContext(s.parentCtx)
-	s.Span.End()
-}
-
-// SetAttributes sets attributes on the span.
-func (s *OTelSpan) SetAttributes(attrs ...attribute.KeyValue) {
-	s.Span.SetAttributes(attrs...)
-}
-
-// OTelTracer wraps the OpenTelemetry tracer.
-type OTelTracer struct {
-	obs    *Observability
-	tracer trace.Tracer
-}
-
-// Start creates a new span and updates the context in the Observability instance.
-func (t *OTelTracer) Start(ctx context.Context, spanName string) (context.Context, Span) {
-	parentCtx := t.obs.Context()
-	newCtx, otelSpan := t.tracer.Start(ctx, spanName)
-	t.obs.SetContext(newCtx)
-
-	span := &OTelSpan{
-		Span:      otelSpan,
-		obs:       t.obs,
-		parentCtx: parentCtx,
+	if s.apmType == DataDog {
+		s.ddSpan.Finish()
+	} else {
+		s.Span.End()
 	}
-	return newCtx, span
-}
-
-// DataDogSpan is a wrapper around ddtrace.Span.
-type DataDogSpan struct {
-	tracer.Span
-	obs       *Observability
-	parentCtx context.Context
-}
-
-// End ends the span.
-func (s *DataDogSpan) End() {
-	s.obs.SetContext(s.parentCtx)
-	s.Finish()
 }
 
 // AddEvent adds an event to the span.
-func (s *DataDogSpan) AddEvent(name string, options ...trace.EventOption) {
-	s.SetTag("event", name)
+func (s *unifiedSpan) AddEvent(name string, options ...trace.EventOption) {
+	if s.apmType == DataDog {
+		s.ddSpan.SetTag("event", name)
+	} else {
+		s.Span.AddEvent(name, options...)
+	}
 }
 
 // RecordError records an error on the span.
-func (s *DataDogSpan) RecordError(err error, options ...trace.EventOption) {
-	s.SetTag("error", err)
+func (s *unifiedSpan) RecordError(err error, options ...trace.EventOption) {
+	if s.apmType == DataDog {
+		s.ddSpan.SetTag("error", err)
+	} else {
+		s.Span.RecordError(err, options...)
+	}
 }
 
 // SetStatus sets the status of the span.
-func (s *DataDogSpan) SetStatus(code codes.Code, description string) {
-	s.SetTag("status", description)
-}
-
-// SetAttributes sets tags on the span.
-func (s *DataDogSpan) SetAttributes(attrs ...attribute.KeyValue) {
-	for _, attr := range attrs {
-		s.SetTag(string(attr.Key), attr.Value.AsString())
+func (s *unifiedSpan) SetStatus(code codes.Code, description string) {
+	if s.apmType == DataDog {
+		s.ddSpan.SetTag("status", description)
+	} else {
+		s.Span.SetStatus(code, description)
 	}
 }
 
-// DataDogTracer wraps the DataDog tracer.
-type DataDogTracer struct {
-	obs *Observability
+// SetAttributes sets attributes on the span.
+func (s *unifiedSpan) SetAttributes(attrs ...attribute.KeyValue) {
+	if s.apmType == DataDog {
+		for _, attr := range attrs {
+			s.ddSpan.SetTag(string(attr.Key), attr.Value.AsString())
+		}
+	} else {
+		s.Span.SetAttributes(attrs...)
+	}
 }
 
-// Start creates a new span.
-func (t *DataDogTracer) Start(ctx context.Context, spanName string) (context.Context, Span) {
+// unifiedTracer is a unified tracer that can create either OTel or DataDog spans.
+type unifiedTracer struct {
+	obs    *Observability
+	tracer trace.Tracer // OTel tracer
+}
+
+// Start creates a new span based on the APM type.
+func (t *unifiedTracer) Start(ctx context.Context, spanName string) (context.Context, Span) {
 	parentCtx := t.obs.Context()
-	ddSpan, newCtx := tracer.StartSpanFromContext(ctx, spanName)
-	t.obs.SetContext(newCtx)
-	span := &DataDogSpan{
-		Span:      *ddSpan,
+	apmType := t.obs.Trace.apmType
+
+	span := &unifiedSpan{
 		obs:       t.obs,
 		parentCtx: parentCtx,
+		apmType:   apmType,
 	}
+
+	var newCtx context.Context
+	if apmType == DataDog {
+		ddSpan, newDdCtx := tracer.StartSpanFromContext(ctx, spanName)
+		span.ddSpan = ddSpan
+		newCtx = newDdCtx
+	} else {
+		var otelSpan trace.Span
+		newCtx, otelSpan = t.tracer.Start(ctx, spanName)
+		span.Span = otelSpan
+	}
+
+	t.obs.SetContext(newCtx)
 	return newCtx, span
 }
 
-// Trace holds the active tracer.
+// Trace holds the active tracer and APM type.
 type Trace struct {
-	Tracer
+	*unifiedTracer
+	apmType APMType
 }
 
 // NewTrace creates a new Trace instance.
 func NewTrace(obs *Observability, serviceName string, apmType APMType) *Trace {
-	var t Tracer
-	switch apmType {
-	case OTLP:
-		t = &OTelTracer{
+	return &Trace{
+		unifiedTracer: &unifiedTracer{
 			obs:    obs,
 			tracer: otel.Tracer(serviceName),
-		}
-	case DataDog:
-		t = &DataDogTracer{
-			obs: obs,
-		}
-	}
-	return &Trace{
-		Tracer: t,
+		},
+		apmType: apmType,
 	}
 }
 
@@ -167,7 +158,7 @@ func setupDataDog(ctx context.Context, serviceName, serviceApp, serviceEnv, apmU
 		tracer.WithAgentAddr(apmURL),
 	)
 
-	obs := NewObservability(ctx, serviceName, DataDog)
+	obs := NewObservability(ctx, serviceName, string(DataDog))
 	obs.Log.Info("DataDog Tracer initialized successfully",
 		"APMURL", apmURL,
 		"APMType", DataDog,
@@ -209,7 +200,7 @@ func setupOTLP(ctx context.Context, serviceName, serviceApp, serviceEnv, apmURL 
 		propagation.Baggage{},
 	))
 
-	obs := NewObservability(ctx, serviceName, OTLP)
+	obs := NewObservability(ctx, serviceName, string(OTLP))
 	obs.Log.Info("OpenTelemetry TracerProvider initialized successfully",
 		"APMURL", apmURL,
 		"APMType", OTLP,

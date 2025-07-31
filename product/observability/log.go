@@ -18,13 +18,11 @@ import (
 var (
 	baseLogger *slog.Logger
 	initOnce   sync.Once
-	globalAPMType APMType
 )
 
 // InitLogger initializes the global logger and sets it as the default.
 func InitLogger(apmType APMType) *slog.Logger {
 	initOnce.Do(func() {
-		globalAPMType = apmType
 		jsonHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 			AddSource: true,
 			Level:     slog.LevelDebug,
@@ -60,7 +58,7 @@ func (l *Log) log(level slog.Level, msg string, args ...any) {
 		return
 	}
 	var pcs [1]uintptr
-	runtime.Callers(3, pcs[:])
+	runtime.Callers(3, pcs[:]) // skip [Callers, log, Info]
 	r := slog.NewRecord(time.Now(), level, msg, pcs[0])
 	r.Add(args...)
 	_ = l.logger.Handler().Handle(ctx, r)
@@ -94,7 +92,7 @@ func (l *Log) With(args ...any) *Log {
 type APMHandler struct {
 	slog.Handler
 	attrs   []slog.Attr
-	apmType APMType // Add apmType field
+	apmType APMType
 }
 
 func NewAPMHandler(baseHandler slog.Handler, apmType APMType) *APMHandler {
@@ -105,7 +103,6 @@ func NewAPMHandler(baseHandler slog.Handler, apmType APMType) *APMHandler {
 }
 
 func (h *APMHandler) Handle(ctx context.Context, r slog.Record) error {
-	// Combine handler attributes with record attributes
 	attrs := make([]slog.Attr, 0, len(h.attrs)+r.NumAttrs())
 	attrs = append(attrs, h.attrs...)
 	r.Attrs(func(a slog.Attr) bool {
@@ -135,22 +132,8 @@ func (h *APMHandler) handleOTLP(ctx context.Context, r slog.Record, slogAttrs []
 	}
 
 	if r.Level >= slog.LevelError {
-		var loggedErr error
-		r.Attrs(func(attr slog.Attr) bool {
-			if attr.Key == "error" {
-				if errVal, ok := attr.Value.Any().(error); ok {
-					loggedErr = errVal
-					return false
-				}
-			}
-			return true
-		})
-
-		if loggedErr == nil {
-			loggedErr = errors.New(r.Message)
-		}
-
-		span.RecordError(loggedErr, trace.WithAttributes(otelAttrs...))
+		err := extractError(r)
+		span.RecordError(err, trace.WithAttributes(otelAttrs...))
 		span.SetStatus(codes.Error, r.Message)
 	} else {
 		span.AddEvent(r.Message, trace.WithAttributes(otelAttrs...))
@@ -164,25 +147,30 @@ func (h *APMHandler) handleDataDog(ctx context.Context, r slog.Record, attrs []s
 		}
 
 		if r.Level >= slog.LevelError {
-			var loggedErr error
-			r.Attrs(func(attr slog.Attr) bool {
-				if attr.Key == "error" {
-					if errVal, ok := attr.Value.Any().(error); ok {
-						loggedErr = errVal
-						return false
-					}
-				}
-				return true
-			})
-
-			if loggedErr == nil {
-				loggedErr = errors.New(r.Message)
-			}
-			ddSpan.SetTag("error", loggedErr)
+			err := extractError(r)
+			ddSpan.SetTag("error", err)
 		} else {
 			ddSpan.SetTag("event", r.Message)
 		}
 	}
+}
+
+// extractError finds and returns an error from a slog record, or creates a new one.
+func extractError(r slog.Record) error {
+	var loggedErr error
+	r.Attrs(func(attr slog.Attr) bool {
+		if attr.Key == "error" {
+			if errVal, ok := attr.Value.Any().(error); ok {
+				loggedErr = errVal
+				return false // stop iterating
+			}
+		}
+		return true
+	})
+	if loggedErr == nil {
+		loggedErr = errors.New(r.Message)
+	}
+	return loggedErr
 }
 
 func toOtelAttribute(a slog.Attr) attribute.KeyValue {
