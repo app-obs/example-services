@@ -2,36 +2,36 @@ package main
 
 import (
 	"context"
-	"log/slog"
+	"product-service/observability"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 type ProductRepository interface {
-	FetchProduct(ctx context.Context, logger *slog.Logger, productID string) (string, error)
+	GetProductByID(ctx context.Context, obs *observability.Observability, id string) (string, error)
 }
 
 type productRepositoryImpl struct{}
 
-func (r *productRepositoryImpl) FetchProduct(ctx context.Context, logger *slog.Logger, 
-	productID string) (string, error) {
-	
-	ctx, span := tracer.Start(ctx, "ProductRepository.FetchProduct", trace.WithAttributes(attribute.String("product.id", productID)))
+func (r *productRepositoryImpl) GetProductByID(ctx context.Context, obs *observability.Observability, id string) (string, error) {
+
+	ctx, span := obs.Trace.Start(ctx, "ProductRepository.GetProductByID", trace.WithAttributes(attribute.String("product.id", id)))
 	defer span.End()
 
-	logger.With(
-		"productID", productID,
-	).DebugContext(ctx, "Fetching product data")
+	obs.Log.With(
+		"productID", id,
+	).Debug("Fetching product data")
 
 	// Simulate DB fetch
-	productInfo := "Nama: Produk " + productID + ", Harga: $19.99, Stok: 100"
-
-	logger.With(
-		"productID", productID,
-		"productInfo", productInfo,
-	).InfoContext(ctx, "Successfully fetched product data")
-	return productInfo, nil
+	// if id == "123" {
+	// 	obs.Log.With("productID", id).Debug("Product found in repository")
+	// 	return "Product ABC", nil
+	// }
+	// obs.Log.With("productID", id).Warn("Product not found in repository")
+	// return "", fmt.Errorf("product not found: %s", id)
+	obs.Log.With("productID", id).Debug("Product found in repository")
+	return "Product ABC", nil
 }
 
 func NewProductRepository() ProductRepository {

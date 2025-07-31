@@ -1,5 +1,5 @@
 # Multi-stage build for product-service
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -7,13 +7,18 @@ WORKDIR /app
 # Install git (needed for go mod download)
 RUN apk add --no-cache git
 
+# Try to cache modules. This is only possible when go.mod and go.sum is correct. 
+# If not, you have to enable "Download dependencies" below
+COPY go.mod go.sum .
+RUN go mod download
+ 
 # Copy source code
 COPY . .
 
 # Download dependencies
-RUN rm -f go.mod go.sum && \
-    go mod init product-service && \
-    go mod tidy
+#RUN rm -f go.mod go.sum && \
+#    go mod init product-service && \
+#    go mod tidy
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .

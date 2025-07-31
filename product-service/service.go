@@ -2,42 +2,43 @@ package main
 
 import (
 	"context"
-	"log/slog"
+	"product-service/observability"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"log/slog"
 )
 
 type ProductService interface {
-	GetProductInfo(ctx context.Context, logger *slog.Logger, productID string) (string, error)
+	GetProductInfo(ctx context.Context, obs *observability.Observability, productID string) (string, error)
 }
 
 type productServiceImpl struct {
 	repo ProductRepository
 }
 
-func (s *productServiceImpl) GetProductInfo(ctx context.Context, logger *slog.Logger, 
-	productID string) (string, error) {
+func (s *productServiceImpl) GetProductInfo(ctx context.Context, obs *observability.Observability, productID string) (string, error) {
 
-	ctx, span := tracer.Start(ctx, "ProductService.GetProductInfo", trace.WithAttributes(attribute.String("product.id", productID)))
+	ctx, span := obs.Trace.Start(ctx, "ProductService.GetProductInfo", trace.WithAttributes(attribute.String("product.id", productID)))
 	defer span.End()
 
-	logger.With(
+	obs.Log.With(
 		"productID", productID,
-	).DebugContext(ctx, "Processing request")
+	).Debug("Processing request")
 
-	productInfo, err := s.repo.FetchProduct(ctx, logger, productID)
+	productInfo, err := s.repo.GetProductByID(ctx, obs, productID)
 	if err != nil {
-		logger.With(
+		obs.Log.With(
 			"productID", productID,
-		).ErrorContext(ctx, "Error fetching product")
+			slog.Any("error", err),
+		).Error("Error fetching product")
 		return "", err
 	}
 
-	logger.With(
+	obs.Log.With(
 		"productID", productID,
 		"productInfo", productInfo,
-	).InfoContext(ctx, "Successfully retrieved product info")
+	).Info("Successfully retrieved product info")
 	return productInfo, nil
 }
 
