@@ -2,30 +2,42 @@ package main
 
 import (
 	"context"
-	"log"
+	"errors"
+	"fmt"
+	"strings"
+	"user-service/observability"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
+// ErrUserNotFound is returned when a user is not found.
+var ErrUserNotFound = errors.New("user not found")
+
 type UserRepository interface {
-	FetchUser(ctx context.Context, userID string) (string, error)
+	GetUserByID(ctx context.Context, obs *observability.Observability, id string) (string, error)
 }
 
 type userRepositoryImpl struct{}
 
-func (r *userRepositoryImpl) FetchUser(ctx context.Context, userID string) (string, error) {
-	ctx, span := tracer.Start(ctx, "UserRepository.FetchUser", trace.WithAttributes(attribute.String("user.id", userID)))
+func (r *userRepositoryImpl) GetUserByID(ctx context.Context, obs *observability.Observability, id string) (string, error) {
+
+	ctx, span := obs.Trace.Start(ctx, "UserRepository.GetUserByID", trace.WithAttributes(attribute.String("user.id", id)))
 	defer span.End()
 
-	traceID, spanID := getTraceSpanInfo(ctx)
-	log.Printf("[%s|%s] UserRepository: Fetching user data for ID %s", traceID, spanID, userID)
+	obs.Log.With(
+		"userID", id,
+	).Debug("Fetching user data")
 
-	// Simulate DB fetch
-	userInfo := "Nama: User " + userID + ", Email: user" + userID + "@example.com"
+	// Simulate DB fetch: if the ID starts with "missing-", return not found.
+	if strings.HasPrefix(id, "missing-") {
+		obs.Log.With("userID", id).Warn("User not found in repository")
+		return "", ErrUserNotFound
+	}
 
-	log.Printf("[%s|%s] UserRepository: Successfully fetched user data for ID %s", traceID, spanID, userID)
-	return userInfo, nil
+	// Otherwise, return a dummy user with its ID.
+	obs.Log.With("userID", id).Debug("User found in repository")
+	return fmt.Sprintf("User ABC with ID %s", id), nil
 }
 
 func NewUserRepository() UserRepository {
