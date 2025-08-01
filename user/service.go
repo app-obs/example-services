@@ -16,8 +16,7 @@ type userServiceImpl struct {
 
 func (s *userServiceImpl) GetUserInfo(ctx context.Context, userID string) (string, error) {
 	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "UserService.GetUserInfo")
-	span.SetAttributes(observability.String("user.id", userID))
+	ctx, span := obs.StartSpan(ctx, "UserService.GetUserInfo", observability.SpanAttributes{"user.id": userID})
 	defer span.End()
 
 	obs.Log.With(

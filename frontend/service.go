@@ -30,8 +30,7 @@ type productServiceImpl struct{}
 
 func (s *productServiceImpl) GetProductInfo(ctx context.Context, productID string) (string, error) {
 	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "ProductService.GetProductInfo")
-	span.SetAttributes(observability.String("product.id", productID))
+	ctx, span := obs.StartSpan(ctx, "ProductService.GetProductInfo", observability.SpanAttributes{"product.id": productID})
 	defer span.End()
 	return callProductService(ctx, productID)
 }
@@ -40,8 +39,7 @@ type userServiceImpl struct{}
 
 func (s *userServiceImpl) GetUserInfo(ctx context.Context, userID string) (string, error) {
 	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "UserService.GetUserInfo")
-	span.SetAttributes(observability.String("user.id", userID))
+	ctx, span := obs.StartSpan(ctx, "UserService.GetUserInfo", observability.SpanAttributes{"user.id": userID})
 	defer span.End()
 	return callUserService(ctx, userID)
 }
@@ -56,8 +54,7 @@ func NewUserService() UserService {
 
 func callProductService(ctx context.Context, productID string) (string, error) {
 	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "callProductService")
-	span.SetAttributes(observability.String("product.id", productID))
+	ctx, span := obs.StartSpan(ctx, "callProductService", observability.SpanAttributes{"product.id": productID})
 	defer span.End()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/product?id=%s", productServiceURL, productID), nil)
@@ -88,8 +85,7 @@ func callProductService(ctx context.Context, productID string) (string, error) {
 
 func callUserService(ctx context.Context, userID string) (string, error) {
 	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.Trace.Start(ctx, "callUserService")
-	span.SetAttributes(observability.String("user.id", userID))
+	ctx, span := obs.StartSpan(ctx, "callUserService", observability.SpanAttributes{"user.id": userID})
 	defer span.End()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/user?id=%s", userServiceURL, userID), nil)

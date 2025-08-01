@@ -3,7 +3,7 @@ module frontend
 go 1.24.2
 
 require (
-	github.com/app-obs/go v0.250801.1
+	github.com/app-obs/go v0.250801.3
 	go.opentelemetry.io/otel v1.37.0
 )
 

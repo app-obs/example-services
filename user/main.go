@@ -29,11 +29,18 @@ func getEnvOrDefault(envKey, defaultValue string) string {
 }
 
 func main() {
-	// Create a background Observability instance for application-level logging
-	bgObs := observability.NewObservability(context.Background(), serviceName, APMType)
+	factoryConfig := observability.FactoryConfig{
+		ServiceName: serviceName,
+		ServiceApp:  serviceApp,
+		ServiceEnv:  serviceEnv,
+		ApmType:     APMType,
+		ApmURL:      APMURL,
+	}
+	obsFactory := observability.NewFactory(factoryConfig)
+	bgObs := obsFactory.NewBackgroundObservability(context.Background())
 
-	// 1. Initialize Tracer Provider via the observability package
-	tp, err := observability.SetupTracing(context.Background(), serviceName, serviceApp, serviceEnv, APMURL, APMType)
+	// 1. Initialize Tracer Provider via the factory
+	tp, err := obsFactory.SetupTracing(context.Background())
 	if err != nil {
 		bgObs.Log.Error("Failed to initialize TracerProvider", "error", err)
 		os.Exit(1)
@@ -48,19 +55,8 @@ func main() {
 	service := NewUserService(repo)
 
 	http.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
-		// Create a new Observability instance from the request
-		obs := observability.NewObservabilityFromRequest(r, serviceName, APMType)
-
-		// Start the root span for the HTTP handler using the Observability instance
-		ctx, span := obs.Trace.Start(obs.Context(), "/user")
-		span.SetAttributes(
-			observability.String("http.method", r.Method),
-			observability.String("http.url", r.URL.String()),
-		)
+		r, ctx, span, _ := obsFactory.StartSpanFromRequest(r)
 		defer span.End()
-
-		// Pass the Observability instance down to the handler function
-		ctx = observability.CtxWithObs(ctx, obs)
 		handleUser(ctx, w, r, service)
 	})
 
@@ -90,8 +86,7 @@ func handleUser(ctx context.Context,
 	obs := observability.ObsFromCtx(ctx)
 	userID := r.URL.Query().Get("id")
 
-	ctx, span := obs.Trace.Start(ctx, "handleUser")
-	span.SetAttributes(observability.String("user.id", userID))
+	ctx, span := obs.StartSpan(ctx, "handleUser", observability.SpanAttributes{"user.id": userID})
 	defer span.End()
 
 	if userID == "" {
