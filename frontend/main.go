@@ -42,8 +42,7 @@ func main() {
 	// 1. Initialize Tracer Provider via the factory
 	tp, err := obsFactory.SetupTracing(context.Background())
 	if err != nil {
-		bgObs.Log.Error("Failed to initialize TracerProvider", "error", err)
-		os.Exit(1)
+		bgObs.ErrorHandler.Fatal("Failed to initialize TracerProvider", "error", err)
 	}
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
@@ -75,8 +74,7 @@ func main() {
 	bgObs.Log.Info("Server running", "address", addr)
 
 	if listenErr := server.ListenAndServe(); listenErr != nil && listenErr != http.ErrServerClosed {
-		bgObs.Log.Error("Server stopped with an error", "error", listenErr)
-		os.Exit(1)
+		bgObs.ErrorHandler.Fatal("Server stopped with an error", "error", listenErr)
 	}
 }
 
@@ -84,15 +82,14 @@ func main() {
 func handleProductDetail(ctx context.Context,
 	w http.ResponseWriter, r *http.Request,
 	productService ProductService, userService UserService) {
-	obs := observability.ObsFromCtx(ctx)
 	productID := r.URL.Query().Get("id")
 
+	obs := observability.ObsFromCtx(ctx)
 	ctx, span := obs.StartSpan(ctx, "handleProductDetail", observability.SpanAttributes{"product.id": productID})
 	defer span.End()
 
 	if productID == "" {
-		obs.Log.Error("Missing product ID")
-		http.Error(w, "Missing product ID", http.StatusBadRequest)
+		obs.ErrorHandler.HTTP(w, "Missing product ID", http.StatusBadRequest)
 		return
 	}
 
@@ -100,8 +97,7 @@ func handleProductDetail(ctx context.Context,
 
 	productInfo, err := productService.GetProductInfo(ctx, productID)
 	if err != nil {
-		obs.Log.Error("Failed to fetch product info", "error", err)
-		http.Error(w, "Failed to fetch product info", http.StatusInternalServerError)
+		obs.ErrorHandler.HTTP(w, "Failed to fetch product info", http.StatusInternalServerError)
 		return
 	}
 

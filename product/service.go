@@ -25,10 +25,7 @@ func (s *productServiceImpl) GetProductInfo(ctx context.Context, productID strin
 
 	productInfo, err := s.repo.GetProductByID(ctx, productID)
 	if err != nil {
-		obs.Log.With(
-			"productID", productID,
-			"error", err,
-		).Error("Error fetching product")
+		obs.ErrorHandler.Record(span, err, "Error fetching product")
 		return "", err
 	}
 

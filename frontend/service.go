@@ -7,8 +7,6 @@ import (
 	"net/http"
 
 	"github.com/app-obs/go/observability"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/propagation"
 )
 
 var (
@@ -61,9 +59,7 @@ func callProductService(ctx context.Context, productID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	// Inject konteks trace ke dalam header HTTP
-	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+	obs.Trace.InjectHTTP(req)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -92,9 +88,7 @@ func callUserService(ctx context.Context, userID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	// Inject konteks trace ke dalam header HTTP
-	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+	obs.Trace.InjectHTTP(req)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

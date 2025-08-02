@@ -25,10 +25,7 @@ func (s *userServiceImpl) GetUserInfo(ctx context.Context, userID string) (strin
 
 	userInfo, err := s.repo.GetUserByID(ctx, userID)
 	if err != nil {
-		obs.Log.With(
-			"userID", userID,
-			"error", err,
-		).Error("Error fetching user")
+		obs.ErrorHandler.Record(span, err, "Error fetching user")
 		return "", err
 	}
 

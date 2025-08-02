@@ -44,8 +44,7 @@ func main() {
 	// 1. Initialize Tracer Provider via the factory
 	tp, err := obsFactory.SetupTracing(context.Background())
 	if err != nil {
-		bgObs.Log.Error("Failed to initialize TracerProvider", "error", err)
-		os.Exit(1)
+		bgObs.ErrorHandler.Fatal("Failed to initialize TracerProvider", "error", err)
 	}
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
@@ -85,14 +84,14 @@ func main() {
 // handleProduct now centralizes all error handling logic.
 func handleProduct(ctx context.Context,
 	w http.ResponseWriter, r *http.Request, service ProductService) {
-	obs := observability.ObsFromCtx(ctx)
 	productID := r.URL.Query().Get("id")
+
+	obs := observability.ObsFromCtx(ctx)
 	ctx, span := obs.StartSpan(ctx, "handleProduct", observability.SpanAttributes{"product.id": productID})
 	defer span.End()
 
 	if productID == "" {
-		obs.Log.Error("Missing product ID")
-		http.Error(w, "Missing product ID", http.StatusBadRequest)
+		obs.ErrorHandler.HTTP(w, "Missing product ID", http.StatusBadRequest)
 		return
 	}
 
@@ -101,13 +100,9 @@ func handleProduct(ctx context.Context,
 	productInfo, err := service.GetProductInfo(ctx, productID)
 	if err != nil {
 		if errors.Is(err, ErrProductNotFound) {
-			// Not found is a client error, not a server error.
-			// The repository already logged a warning, so we just respond.
-			http.Error(w, "Product not found", http.StatusNotFound)
+			obs.ErrorHandler.HTTP(w, "Product not found", http.StatusNotFound)
 		} else {
-			// For all other errors, log them as server errors and respond.
-			obs.Log.Error("Failed to fetch product info", "error", err)
-			http.Error(w, "Failed to fetch product info", http.StatusInternalServerError)
+			obs.ErrorHandler.HTTP(w, "Failed to fetch product info", http.StatusInternalServerError)
 		}
 		return
 	}

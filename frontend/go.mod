@@ -2,10 +2,7 @@ module frontend
 
 go 1.24.2
 
-require (
-	github.com/app-obs/go v0.250801.3
-	go.opentelemetry.io/otel v1.37.0
-)
+require github.com/app-obs/go v0.250802.1
 
 require (
 	github.com/DataDog/appsec-internal-go v1.13.0 // indirect
@@ -62,6 +59,7 @@ require (
 	go.opentelemetry.io/collector/pdata v1.28.1 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.122.1 // indirect
 	go.opentelemetry.io/collector/semconv v0.122.1 // indirect
+	go.opentelemetry.io/otel v1.37.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.37.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.37.0 // indirect
 	go.opentelemetry.io/otel/metric v1.37.0 // indirect

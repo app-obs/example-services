@@ -42,8 +42,7 @@ func main() {
 	// 1. Initialize Tracer Provider via the factory
 	tp, err := obsFactory.SetupTracing(context.Background())
 	if err != nil {
-		bgObs.Log.Error("Failed to initialize TracerProvider", "error", err)
-		os.Exit(1)
+		bgObs.ErrorHandler.Fatal("Failed to initialize TracerProvider", "error", err)
 	}
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
@@ -75,23 +74,21 @@ func main() {
 	bgObs.Log.Info("Server running", "address", addr)
 
 	if listenErr := server.ListenAndServe(); listenErr != nil && listenErr != http.ErrServerClosed {
-		bgObs.Log.Error("Server stopped with an error", "error", listenErr)
-		os.Exit(1)
+		bgObs.ErrorHandler.Fatal("Server stopped with an error", "error", listenErr)
 	}
 }
 
 // handleUser now centralizes all error handling logic.
 func handleUser(ctx context.Context,
 	w http.ResponseWriter, r *http.Request, service UserService) {
-	obs := observability.ObsFromCtx(ctx)
 	userID := r.URL.Query().Get("id")
 
+	obs := observability.ObsFromCtx(ctx)
 	ctx, span := obs.StartSpan(ctx, "handleUser", observability.SpanAttributes{"user.id": userID})
 	defer span.End()
 
 	if userID == "" {
-		obs.Log.Error("Missing user ID")
-		http.Error(w, "Missing user ID", http.StatusBadRequest)
+		obs.ErrorHandler.HTTP(w, "Missing user ID", http.StatusBadRequest)
 		return
 	}
 
@@ -100,13 +97,9 @@ func handleUser(ctx context.Context,
 	userInfo, err := service.GetUserInfo(ctx, userID)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
-			// Not found is a client error, not a server error.
-			// The repository already logged a warning, so we just respond.
-			http.Error(w, "User not found", http.StatusNotFound)
+			obs.ErrorHandler.HTTP(w, "User not found", http.StatusNotFound)
 		} else {
-			// For all other errors, log them as server errors and respond.
-			obs.Log.Error("Failed to fetch user info", "error", err)
-			http.Error(w, "Failed to fetch user info", http.StatusInternalServerError)
+			obs.ErrorHandler.HTTP(w, "Failed to fetch user info", http.StatusInternalServerError)
 		}
 		return
 	}
