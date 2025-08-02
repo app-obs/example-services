@@ -18,7 +18,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
+        loki-url: http://${OBSERVABILITY_SERVER}:${LOKI_PORT}/loki/api/v1/push
         labels: service,application,environment
   user:
     build: ./${USER_SERVICE}
@@ -37,7 +37,7 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
+        loki-url: http://${OBSERVABILITY_SERVER}:${LOKI_PORT}/loki/api/v1/push
         labels: service,application,environment
   frontend:
     build: ./${FRONTEND_SERVICE}
@@ -61,5 +61,5 @@ services:
     logging:
       driver: loki
       options:
-        loki-url: http://${OBSERVABILITY_HOST}:${LOKI_PORT}/loki/api/v1/push
+        loki-url: http://${OBSERVABILITY_SERVER}:${LOKI_PORT}/loki/api/v1/push
         labels: service,application,environment
