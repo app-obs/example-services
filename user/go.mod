@@ -2,7 +2,7 @@ module user
 
 go 1.24.2
 
-require github.com/app-obs/go v0.250802.2
+require github.com/app-obs/go v0.250802.5
 
 require (
 	github.com/DataDog/appsec-internal-go v1.13.0 // indirect

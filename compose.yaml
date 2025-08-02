@@ -1,3 +1,5 @@
+# Environment variables for this Compose file are defined in the .env file.
+
 services:
   product:
     build: ./${PRODUCT_SERVICE}
@@ -7,6 +9,8 @@ services:
       - PORT=${PRODUCT_PORT}
       - APM_TYPE=${APM_TYPE}
       - APM_URL=${APM_URL}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     labels:
       service: ${PRODUCT_SERVICE}
       application: ${APPLICATION}
@@ -24,6 +28,8 @@ services:
       - PORT=${USER_PORT}
       - APM_TYPE=${APM_TYPE}
       - APM_URL=${APM_URL}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     labels:
       service: ${USER_SERVICE}
       application: ${APPLICATION}
@@ -43,6 +49,8 @@ services:
       - APM_URL=${APM_URL}
       - PRODUCT_SERVICE_URL=http://${PRODUCT_SERVICE}:${PRODUCT_PORT}
       - USER_SERVICE_URL=http://${USER_SERVICE}:${USER_PORT}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     labels:
       service: ${FRONTEND_SERVICE}
       application: ${APPLICATION}
