@@ -2,7 +2,7 @@ module frontend
 
 go 1.24.2
 
-require github.com/app-obs/go v0.250804.11
+require github.com/app-obs/go v0.250804.13
 
 require (
 	github.com/DataDog/appsec-internal-go v1.13.0 // indirect
