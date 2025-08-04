@@ -2,17 +2,21 @@
 
 services:
   product:
-    build: ./${PRODUCT_SERVICE}
+    build:
+      context: ./${PRODUCT_SERVICE}
+      args:
+        - APM_TYPE=${APM_TYPE}
+        - METRICS_TYPE=${METRICS_TYPE}
     ports:
       - "${PRODUCT_PORT}:${PRODUCT_PORT}"
     environment:
       - PORT=${PRODUCT_PORT}
       - OBS_APM_TYPE=${APM_TYPE}
+      - OBS_METRICS_TYPE=${METRICS_TYPE}
       - OBS_APM_URL=${APM_URL}
       - OBS_SERVICE_NAME=${PRODUCT_SERVICE}
       - OBS_APPLICATION=${APPLICATION}
       - OBS_ENVIRONMENT=${ENVIRONMENT}
-      - OBS_RUNTIME_METRICS=${OBS_RUNTIME_METRICS}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     labels:
@@ -25,17 +29,21 @@ services:
         loki-url: "${LOKI_URL}"
         labels: service,application,environment
   user:
-    build: ./${USER_SERVICE}
+    build:
+      context: ./${USER_SERVICE}
+      args:
+        - APM_TYPE=${APM_TYPE}
+        - METRICS_TYPE=${METRICS_TYPE}
     ports:
       - "${USER_PORT}:${USER_PORT}"
     environment:
       - PORT=${USER_PORT}
       - OBS_APM_TYPE=${APM_TYPE}
+      - OBS_METRICS_TYPE=${METRICS_TYPE}
       - OBS_APM_URL=${APM_URL}
       - OBS_SERVICE_NAME=${USER_SERVICE}
       - OBS_APPLICATION=${APPLICATION}
       - OBS_ENVIRONMENT=${ENVIRONMENT}
-      - OBS_RUNTIME_METRICS=${OBS_RUNTIME_METRICS}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     labels:
@@ -48,17 +56,21 @@ services:
         loki-url: "${LOKI_URL}"
         labels: service,application,environment
   frontend:
-    build: ./${FRONTEND_SERVICE}
+    build:
+      context: ./${FRONTEND_SERVICE}
+      args:
+        - APM_TYPE=${APM_TYPE}
+        - METRICS_TYPE=${METRICS_TYPE}
     ports:
       - "${FRONTEND_PORT}:${FRONTEND_PORT}"
     environment:
       - PORT=${FRONTEND_PORT}
       - OBS_APM_TYPE=${APM_TYPE}
+      - OBS_METRICS_TYPE=${METRICS_TYPE}
       - OBS_APM_URL=${APM_URL}
       - OBS_SERVICE_NAME=${FRONTEND_SERVICE}
       - OBS_APPLICATION=${APPLICATION}
       - OBS_ENVIRONMENT=${ENVIRONMENT}
-      - OBS_RUNTIME_METRICS=${OBS_RUNTIME_METRICS}
       - PRODUCT_SERVICE_URL=http://${PRODUCT_SERVICE}:${PRODUCT_PORT}
       - USER_SERVICE_URL=http://${USER_SERVICE}:${USER_PORT}
     extra_hosts:
