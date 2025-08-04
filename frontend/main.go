@@ -48,9 +48,9 @@ func main() {
 	userService := NewUserService()
 
 	http.HandleFunc("/product-detail", func(w http.ResponseWriter, r *http.Request) {
-		r, ctx, span, _ := obsFactory.StartSpanFromRequest(r)
+		r, ctx, span, obs := obsFactory.StartSpanFromRequest(r)
 		defer span.End()
-		handleProductDetail(ctx, w, r, productService, userService)
+		handleProductDetail(ctx, w, r, obs, productService, userService)
 	})
 
 	port := getEnvOrDefault(EnvPort, DefaultPort)
@@ -75,11 +75,9 @@ func main() {
 // handleProductDetail now centralizes all error handling logic.
 func handleProductDetail(ctx context.Context,
 	w http.ResponseWriter, r *http.Request,
+	obs *observability.Observability,
 	productService ProductService, userService UserService) {
 	productID := r.URL.Query().Get("id")
-
-	ctx, obs, span := observability.StartSpanFromCtx(ctx, "handleProductDetail", observability.SpanAttributes{"product.id": productID})
-	defer span.End()
 
 	if productID == "" {
 		obs.ErrorHandler.HTTP(w, "Missing product ID", http.StatusBadRequest)

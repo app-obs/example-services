@@ -7,14 +7,14 @@ import (
 )
 
 type ProductService interface {
-	GetProductInfo(ctx context.Context, productID string) (string, error)
+	GetProductInfo(ctx context.Context, obs *observability.Observability, productID string) (string, error)
 }
 
 type productServiceImpl struct {
 	repo ProductRepository
 }
 
-func (s *productServiceImpl) GetProductInfo(ctx context.Context, productID string) (string, error) {
+func (s *productServiceImpl) GetProductInfo(ctx context.Context, obs *observability.Observability, productID string) (string, error) {
 	ctx, obs, span := observability.StartSpanFromCtxWith(ctx, "ProductService.GetProductInfo",
 		observability.String("product.id", productID),
 	)
@@ -24,7 +24,7 @@ func (s *productServiceImpl) GetProductInfo(ctx context.Context, productID strin
 		"productID", productID,
 	).Debug("Processing request")
 
-	productInfo, err := s.repo.GetProductByID(ctx, productID)
+	productInfo, err := s.repo.GetProductByID(ctx, obs, productID)
 	if err != nil {
 		obs.ErrorHandler.Record(err, "Error fetching product")
 		return "", err

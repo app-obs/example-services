@@ -13,12 +13,12 @@ import (
 var ErrProductNotFound = errors.New("product not found")
 
 type ProductRepository interface {
-	GetProductByID(ctx context.Context, id string) (string, error)
+	GetProductByID(ctx context.Context, obs *observability.Observability, id string) (string, error)
 }
 
 type productRepositoryImpl struct{}
 
-func (r *productRepositoryImpl) GetProductByID(ctx context.Context, id string) (string, error) {
+func (r *productRepositoryImpl) GetProductByID(ctx context.Context, obs *observability.Observability, id string) (string, error) {
 	ctx, obs, span := observability.StartSpanFromCtx(ctx, "ProductRepository.GetProductByID", observability.SpanAttributes{"product.id": id})
 	defer span.End()
 

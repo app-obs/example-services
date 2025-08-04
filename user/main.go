@@ -45,9 +45,9 @@ func main() {
 	service := NewUserService(repo)
 
 	http.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
-		r, ctx, span, _ := obsFactory.StartSpanFromRequest(r)
+		r, ctx, span, obs := obsFactory.StartSpanFromRequest(r)
 		defer span.End()
-		handleUser(ctx, w, r, service)
+		handleUser(ctx, w, r, obs, service)
 	})
 
 	port := getEnvOrDefault(EnvPort, DefaultPort)
@@ -71,11 +71,10 @@ func main() {
 
 // handleUser now centralizes all error handling logic.
 func handleUser(ctx context.Context,
-	w http.ResponseWriter, r *http.Request, service UserService) {
+	w http.ResponseWriter, r *http.Request,
+	obs *observability.Observability,
+	service UserService) {
 	userID := r.URL.Query().Get("id")
-
-	ctx, obs, span := observability.StartSpanFromCtx(ctx, "handleUser", observability.SpanAttributes{"user.id": userID})
-	defer span.End()
 
 	if userID == "" {
 		obs.ErrorHandler.HTTP(w, "Missing user ID", http.StatusBadRequest)
@@ -84,7 +83,7 @@ func handleUser(ctx context.Context,
 
 	obs.Log.Debug("Searching for user info", "userID", userID)
 
-	userInfo, err := service.GetUserInfo(ctx, userID)
+	userInfo, err := service.GetUserInfo(ctx, obs, userID)
 	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
 			obs.ErrorHandler.HTTP(w, "User not found", http.StatusNotFound)

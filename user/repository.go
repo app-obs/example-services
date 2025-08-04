@@ -13,12 +13,12 @@ import (
 var ErrUserNotFound = errors.New("user not found")
 
 type UserRepository interface {
-	GetUserByID(ctx context.Context, id string) (string, error)
+	GetUserByID(ctx context.Context, obs *observability.Observability, id string) (string, error)
 }
 
 type userRepositoryImpl struct{}
 
-func (r *userRepositoryImpl) GetUserByID(ctx context.Context, id string) (string, error) {
+func (r *userRepositoryImpl) GetUserByID(ctx context.Context, obs *observability.Observability, id string) (string, error) {
 	ctx, obs, span := observability.StartSpanFromCtx(ctx, "UserRepository.GetUserByID", observability.SpanAttributes{"user.id": id})
 	defer span.End()
 

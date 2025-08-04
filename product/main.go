@@ -45,9 +45,9 @@ func main() {
 	service := NewProductService(repo)
 
 	http.HandleFunc("/product", func(w http.ResponseWriter, r *http.Request) {
-		r, ctx, span, _ := obsFactory.StartSpanFromRequest(r)
+		r, ctx, span, obs := obsFactory.StartSpanFromRequest(r)
 		defer span.End()
-		handleProduct(ctx, w, r, service)
+		handleProduct(ctx, w, r, obs, service)
 	})
 
 	port := getEnvOrDefault(EnvPort, DefaultPort)
@@ -71,11 +71,10 @@ func main() {
 }
 
 func handleProduct(ctx context.Context,
-	w http.ResponseWriter, r *http.Request, service ProductService) {
+	w http.ResponseWriter, r *http.Request,
+	obs *observability.Observability,
+	service ProductService) {
 	productID := r.URL.Query().Get("id")
-
-	ctx, obs, span := observability.StartSpanFromCtx(ctx, "handleProduct", observability.SpanAttributes{"product.id": productID})
-	defer span.End()
 
 	if productID == "" {
 		obs.ErrorHandler.HTTP(w, "Missing product ID", http.StatusBadRequest)
@@ -84,7 +83,7 @@ func handleProduct(ctx context.Context,
 
 	obs.Log.Debug("Searching for product info", "productID", productID)
 
-	productInfo, err := service.GetProductInfo(ctx, productID)
+	productInfo, err := service.GetProductInfo(ctx, obs, productID)
 	if err != nil {
 		if errors.Is(err, ErrProductNotFound) {
 			obs.ErrorHandler.HTTP(w, "Product not found", http.StatusNotFound)

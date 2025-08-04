@@ -27,17 +27,17 @@ type UserService interface {
 type productServiceImpl struct{}
 
 func (s *productServiceImpl) GetProductInfo(ctx context.Context, productID string) (string, error) {
-	ctx, _, span := observability.StartSpanFromCtx(ctx, "ProductService.GetProductInfo", observability.SpanAttributes{"product.id": productID})
+	ctx, obs, span := observability.StartSpanFromCtx(ctx, "ProductService.GetProductInfo", observability.SpanAttributes{"product.id": productID})
 	defer span.End()
-	return callProductService(ctx, productID)
+	return callProductService(ctx, obs, productID)
 }
 
 type userServiceImpl struct{}
 
 func (s *userServiceImpl) GetUserInfo(ctx context.Context, userID string) (string, error) {
-	ctx, _, span := observability.StartSpanFromCtx(ctx, "UserService.GetUserInfo", observability.SpanAttributes{"user.id": userID})
+	ctx, obs, span := observability.StartSpanFromCtx(ctx, "UserService.GetUserInfo", observability.SpanAttributes{"user.id": userID})
 	defer span.End()
-	return callUserService(ctx, userID)
+	return callUserService(ctx, obs, userID)
 }
 
 func NewProductService() ProductService {
@@ -48,10 +48,7 @@ func NewUserService() UserService {
 	return &userServiceImpl{}
 }
 
-func callProductService(ctx context.Context, productID string) (string, error) {
-	ctx, obs, span := observability.StartSpanFromCtx(ctx, "callProductService", observability.SpanAttributes{"product.id": productID})
-	defer span.End()
-
+func callProductService(ctx context.Context, obs *observability.Observability, productID string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/product?id=%s", productServiceURL, productID), nil)
 	if err != nil {
 		return "", err
@@ -76,10 +73,7 @@ func callProductService(ctx context.Context, productID string) (string, error) {
 	return string(body), nil
 }
 
-func callUserService(ctx context.Context, userID string) (string, error) {
-	ctx, obs, span := observability.StartSpanFromCtx(ctx, "callUserService", observability.SpanAttributes{"user.id": userID})
-	defer span.End()
-
+func callUserService(ctx context.Context, obs *observability.Observability, userID string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/user?id=%s", userServiceURL, userID), nil)
 	if err != nil {
 		return "", err

@@ -7,14 +7,14 @@ import (
 )
 
 type UserService interface {
-	GetUserInfo(ctx context.Context, userID string) (string, error)
+	GetUserInfo(ctx context.Context, obs *observability.Observability, userID string) (string, error)
 }
 
 type userServiceImpl struct {
 	repo UserRepository
 }
 
-func (s *userServiceImpl) GetUserInfo(ctx context.Context, userID string) (string, error) {
+func (s *userServiceImpl) GetUserInfo(ctx context.Context, obs *observability.Observability, userID string) (string, error) {
 	ctx, obs, span := observability.StartSpanFromCtx(ctx, "UserService.GetUserInfo", observability.SpanAttributes{"user.id": userID})
 	defer span.End()
 
@@ -22,7 +22,7 @@ func (s *userServiceImpl) GetUserInfo(ctx context.Context, userID string) (strin
 		"userID", userID,
 	).Debug("Processing request")
 
-	userInfo, err := s.repo.GetUserByID(ctx, userID)
+	userInfo, err := s.repo.GetUserByID(ctx, obs, userID)
 	if err != nil {
 		obs.ErrorHandler.Record(err, "Error fetching user")
 		return "", err
