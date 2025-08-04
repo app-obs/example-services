@@ -12,6 +12,7 @@ services:
       - OBS_SERVICE_NAME=${PRODUCT_SERVICE}
       - OBS_APPLICATION=${APPLICATION}
       - OBS_ENVIRONMENT=${ENVIRONMENT}
+      - OBS_RUNTIME_METRICS=${OBS_RUNTIME_METRICS}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     labels:
@@ -34,6 +35,7 @@ services:
       - OBS_SERVICE_NAME=${USER_SERVICE}
       - OBS_APPLICATION=${APPLICATION}
       - OBS_ENVIRONMENT=${ENVIRONMENT}
+      - OBS_RUNTIME_METRICS=${OBS_RUNTIME_METRICS}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     labels:
@@ -56,6 +58,7 @@ services:
       - OBS_SERVICE_NAME=${FRONTEND_SERVICE}
       - OBS_APPLICATION=${APPLICATION}
       - OBS_ENVIRONMENT=${ENVIRONMENT}
+      - OBS_RUNTIME_METRICS=${OBS_RUNTIME_METRICS}
       - PRODUCT_SERVICE_URL=http://${PRODUCT_SERVICE}:${PRODUCT_PORT}
       - USER_SERVICE_URL=http://${USER_SERVICE}:${USER_PORT}
     extra_hosts:
