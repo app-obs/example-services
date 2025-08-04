@@ -23,8 +23,6 @@ func getEnvOrDefault(envKey, defaultValue string) string {
 	return defaultValue
 }
 
-// Removed initTracerProvider - its logic is now in observability.SetupTracing
-
 func main() {
 	// The factory will automatically read the following environment variables:
 	// - OBS_SERVICE_NAME: The name of the service.
@@ -72,7 +70,6 @@ func main() {
 	}
 }
 
-// handleProduct now centralizes all error handling logic.
 func handleProduct(ctx context.Context,
 	w http.ResponseWriter, r *http.Request, service ProductService) {
 	productID := r.URL.Query().Get("id")
