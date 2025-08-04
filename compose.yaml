@@ -7,8 +7,11 @@ services:
       - "${PRODUCT_PORT}:${PRODUCT_PORT}"
     environment:
       - PORT=${PRODUCT_PORT}
-      - APM_TYPE=${APM_TYPE}
-      - APM_URL=${APM_URL}
+      - OBS_APM_TYPE=${APM_TYPE}
+      - OBS_APM_URL=${APM_URL}
+      - OBS_SERVICE_NAME=${PRODUCT_SERVICE}
+      - OBS_APPLICATION=${APPLICATION}
+      - OBS_ENVIRONMENT=${ENVIRONMENT}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     labels:
@@ -26,8 +29,11 @@ services:
       - "${USER_PORT}:${USER_PORT}"
     environment:
       - PORT=${USER_PORT}
-      - APM_TYPE=${APM_TYPE}
-      - APM_URL=${APM_URL}
+      - OBS_APM_TYPE=${APM_TYPE}
+      - OBS_APM_URL=${APM_URL}
+      - OBS_SERVICE_NAME=${USER_SERVICE}
+      - OBS_APPLICATION=${APPLICATION}
+      - OBS_ENVIRONMENT=${ENVIRONMENT}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     labels:
@@ -45,8 +51,11 @@ services:
       - "${FRONTEND_PORT}:${FRONTEND_PORT}"
     environment:
       - PORT=${FRONTEND_PORT}
-      - APM_TYPE=${APM_TYPE}
-      - APM_URL=${APM_URL}
+      - OBS_APM_TYPE=${APM_TYPE}
+      - OBS_APM_URL=${APM_URL}
+      - OBS_SERVICE_NAME=${FRONTEND_SERVICE}
+      - OBS_APPLICATION=${APPLICATION}
+      - OBS_ENVIRONMENT=${ENVIRONMENT}
       - PRODUCT_SERVICE_URL=http://${PRODUCT_SERVICE}:${PRODUCT_PORT}
       - USER_SERVICE_URL=http://${USER_SERVICE}:${USER_PORT}
     extra_hosts:

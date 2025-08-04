@@ -11,11 +11,6 @@ import (
 )
 
 var (
-	serviceApp  = getEnvOrDefault("APPLICATION", "ecommerce")
-	serviceEnv  = getEnvOrDefault("ENVIRONMENT", "development")
-	APMType     = getEnvOrDefault("APM_TYPE", "none")
-	APMURL      = getEnvOrDefault("APM_URL", "http://tempo:4318/v1/traces")
-	serviceName = getEnvOrDefault("SERVICE_NAME", "frontend-service")
 	EnvPort     = "PORT"
 	DefaultPort = "8085"
 )
@@ -29,14 +24,13 @@ func getEnvOrDefault(envKey, defaultValue string) string {
 }
 
 func main() {
-	factoryConfig := observability.FactoryConfig{
-		ServiceName: serviceName,
-		ServiceApp:  serviceApp,
-		ServiceEnv:  serviceEnv,
-		ApmType:     APMType,
-		ApmURL:      APMURL,
-	}
-	obsFactory := observability.NewFactory(factoryConfig)
+	// The factory will automatically read the following environment variables:
+	// - OBS_SERVICE_NAME: The name of the service.
+	// - OBS_APPLICATION: The name of the application.
+	// - OBS_ENVIRONMENT: The deployment environment (e.g., "development", "production").
+	// - OBS_APM_TYPE: The APM backend to use ("otlp", "datadog", or "none").
+	// - OBS_APM_URL: The URL of the APM collector.
+	obsFactory := observability.NewFactory()
 	bgObs := obsFactory.NewBackgroundObservability(context.Background())
 
 	// 1. Initialize Tracer Provider via the factory
@@ -50,6 +44,9 @@ func main() {
 		}
 	}()
 
+	// The services rely on the following environment variables to connect to backends:
+	// - PRODUCT_SERVICE_URL: The URL for the product service.
+	// - USER_SERVICE_URL: The URL for the user service.
 	productService := NewProductService()
 	userService := NewUserService()
 
