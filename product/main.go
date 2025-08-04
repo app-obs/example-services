@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -33,13 +34,19 @@ func main() {
 	// - OBS_APM_TYPE: The APM backend to use ("otlp", "datadog", or "none").
 	// - OBS_APM_URL: The URL of the APM collector.
 	obsFactory := observability.NewFactory()
-	bgObs := obsFactory.NewBackgroundObservability(context.Background())
 
 	// 1. Initialize all observability components
 	shutdown, err := obsFactory.Setup(context.Background())
 	if err != nil {
-		bgObs.ErrorHandler.Fatal("Failed to setup observability", "error", err)
+		// If setup fails, we can't rely on the full observability stack.
+		// Log to a fallback logger (e.g., standard library logger) and exit.
+		slog.Error("Failed to setup observability", "error", err)
+		os.Exit(1)
 	}
+
+	// Now that setup is complete, create the background observability instance.
+	bgObs := obsFactory.NewBackgroundObservability(context.Background())
+
 	defer func() {
 		if err := shutdown.Shutdown(context.Background()); err != nil {
 			bgObs.Log.Error("Error during observability shutdown", "error", err)
