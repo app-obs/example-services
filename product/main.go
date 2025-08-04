@@ -74,8 +74,7 @@ func handleProduct(ctx context.Context,
 	w http.ResponseWriter, r *http.Request, service ProductService) {
 	productID := r.URL.Query().Get("id")
 
-	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.StartSpan(ctx, "handleProduct", observability.SpanAttributes{"product.id": productID})
+	ctx, obs, span := observability.StartSpanFromCtx(ctx, "handleProduct", observability.SpanAttributes{"product.id": productID})
 	defer span.End()
 
 	if productID == "" {

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -33,23 +32,14 @@ func main() {
 	// - OBS_APM_URL: The URL of the APM collector.
 	obsFactory := observability.NewFactory()
 
-	// 1. Initialize all observability components
-	shutdown, err := obsFactory.Setup(context.Background())
-	if err != nil {
-		// If setup fails, we can't rely on the full observability stack.
-		// Log to a fallback logger (e.g., standard library logger) and exit.
-		slog.Error("Failed to setup observability", "error", err)
-		os.Exit(1)
-	}
+	// 1. Initialize all observability components, exiting on failure.
+	shutdowner := obsFactory.SetupOrExit("Failed to setup observability")
 
 	// Now that setup is complete, create the background observability instance.
 	bgObs := obsFactory.NewBackgroundObservability(context.Background())
 
-	defer func() {
-		if err := shutdown.Shutdown(context.Background()); err != nil {
-			bgObs.Log.Error("Error during observability shutdown", "error", err)
-		}
-	}()
+	// 2. Defer the shutdown call.
+	defer shutdowner.ShutdownOrLog("Error during observability shutdown")
 
 	// The services rely on the following environment variables to connect to backends:
 	// - PRODUCT_SERVICE_URL: The URL for the product service.
@@ -88,8 +78,7 @@ func handleProductDetail(ctx context.Context,
 	productService ProductService, userService UserService) {
 	productID := r.URL.Query().Get("id")
 
-	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.StartSpan(ctx, "handleProductDetail", observability.SpanAttributes{"product.id": productID})
+	ctx, obs, span := observability.StartSpanFromCtx(ctx, "handleProductDetail", observability.SpanAttributes{"product.id": productID})
 	defer span.End()
 
 	if productID == "" {

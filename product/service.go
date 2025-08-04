@@ -15,8 +15,9 @@ type productServiceImpl struct {
 }
 
 func (s *productServiceImpl) GetProductInfo(ctx context.Context, productID string) (string, error) {
-	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.StartSpan(ctx, "ProductService.GetProductInfo", observability.SpanAttributes{"product.id": productID})
+	ctx, obs, span := observability.StartSpanFromCtxWith(ctx, "ProductService.GetProductInfo",
+		observability.String("product.id", productID),
+	)
 	defer span.End()
 
 	obs.Log.With(

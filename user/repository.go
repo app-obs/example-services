@@ -19,8 +19,7 @@ type UserRepository interface {
 type userRepositoryImpl struct{}
 
 func (r *userRepositoryImpl) GetUserByID(ctx context.Context, id string) (string, error) {
-	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.StartSpan(ctx, "UserRepository.GetUserByID", observability.SpanAttributes{"user.id": id})
+	ctx, obs, span := observability.StartSpanFromCtx(ctx, "UserRepository.GetUserByID", observability.SpanAttributes{"user.id": id})
 	defer span.End()
 
 	obs.Log.With(

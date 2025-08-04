@@ -15,8 +15,7 @@ type userServiceImpl struct {
 }
 
 func (s *userServiceImpl) GetUserInfo(ctx context.Context, userID string) (string, error) {
-	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.StartSpan(ctx, "UserService.GetUserInfo", observability.SpanAttributes{"user.id": userID})
+	ctx, obs, span := observability.StartSpanFromCtx(ctx, "UserService.GetUserInfo", observability.SpanAttributes{"user.id": userID})
 	defer span.End()
 
 	obs.Log.With(
@@ -25,7 +24,7 @@ func (s *userServiceImpl) GetUserInfo(ctx context.Context, userID string) (strin
 
 	userInfo, err := s.repo.GetUserByID(ctx, userID)
 	if err != nil {
-		obs.ErrorHandler.Record(span, err, "Error fetching user")
+		obs.ErrorHandler.Record(err, "Error fetching user")
 		return "", err
 	}
 

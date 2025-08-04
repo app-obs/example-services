@@ -19,8 +19,7 @@ type ProductRepository interface {
 type productRepositoryImpl struct{}
 
 func (r *productRepositoryImpl) GetProductByID(ctx context.Context, id string) (string, error) {
-	obs := observability.ObsFromCtx(ctx)
-	ctx, span := obs.StartSpan(ctx, "ProductRepository.GetProductByID", observability.SpanAttributes{"product.id": id})
+	ctx, obs, span := observability.StartSpanFromCtx(ctx, "ProductRepository.GetProductByID", observability.SpanAttributes{"product.id": id})
 	defer span.End()
 
 	obs.Log.With(
