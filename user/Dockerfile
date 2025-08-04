@@ -22,7 +22,9 @@ COPY . .
 #    go mod tidy
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -trimpath -o main .
 
 # Final stage - use minimal base image
 FROM alpine:latest
