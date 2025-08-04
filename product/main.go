@@ -35,14 +35,14 @@ func main() {
 	obsFactory := observability.NewFactory()
 	bgObs := obsFactory.NewBackgroundObservability(context.Background())
 
-	// 1. Initialize Tracer Provider via the factory
-	tp, err := obsFactory.SetupTracing(context.Background())
+	// 1. Initialize all observability components
+	shutdown, err := obsFactory.Setup(context.Background())
 	if err != nil {
-		bgObs.ErrorHandler.Fatal("Failed to initialize TracerProvider", "error", err)
+		bgObs.ErrorHandler.Fatal("Failed to setup observability", "error", err)
 	}
 	defer func() {
-		if err := tp.Shutdown(context.Background()); err != nil {
-			bgObs.Log.Error("Error shutting down TracerProvider", "error", err)
+		if err := shutdown.Shutdown(context.Background()); err != nil {
+			bgObs.Log.Error("Error during observability shutdown", "error", err)
 		}
 	}()
 
