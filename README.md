@@ -1,8 +1,8 @@
 # Example Microservices for `go-observability`
 
-This project contains a set of three simple Go microservices (`frontend`, `product`, and `user`) that are fully instrumented using the [`go-observability`](https://github.com/app-obs/go) library.
+This project contains a set of three simple Go microservices (`frontend`, `product`, and `user`) that serve as the official, runnable demonstration for the [**`go-observability`**](https://github.com/app-obs/go) library.
 
-It serves as a real-world, runnable example of how to use the library to achieve automatic log correlation, distributed tracing, and standardized error handling. This project is designed to be run against the [`example-observability-server`](https://github.com/app-obs/example-observability-server).
+It serves as a real-world example of how to use the library to achieve automatic log correlation, distributed tracing, and standardized error handling. This project is designed to be run against the [`example-observability-server`](https://github.com/app-obs/example-observability-server).
 
 ## Project Structure
 
@@ -36,6 +36,53 @@ curl http://localhost:8085/product-detail?id=123
 # Send a request for a "missing" product to see an error trace
 curl http://localhost:8085/product-detail?id=missing-456
 ```
+
+## Building with Specific Backends (Build Tags)
+
+This project's Dockerfiles are configured to use Go build tags to compile the services with only the necessary code for a specific backend. Using these options to select only the backends you need will result in smaller, more efficient Docker images.
+
+You can control which backends are compiled into the services by setting the `APM_TYPE` and `METRICS_TYPE` variables in the `.env` file before building.
+
+-   **`APM_TYPE`**: Controls the tracing backend.
+    -   `otlp` (Default): Compiles with the OpenTelemetry tracer.
+    -   `datadog`: Compiles with the Datadog tracer.
+    -   `none`: Compiles with no tracing code.
+-   **`METRICS_TYPE`**: Controls the metrics backend.
+    -   `otlp`: Compiles with the OpenTelemetry metrics SDK and enables automatic Go runtime metrics collection. **This requires `APM_TYPE` to also be `otlp`**.
+    -   `none` (Default): Compiles with no metrics code.
+
+### Examples
+
+**Build with OTLP Tracing and Metrics (Recommended for OTLP):**
+Edit `.env`:
+```
+APM_TYPE=otlp
+METRICS_TYPE=otlp
+```
+
+**Build with Datadog Tracing only:**
+Edit `.env`:
+```
+APM_TYPE=datadog
+METRICS_TYPE=none
+```
+
+**Build with No Tracing or Metrics (Smallest Binary):**
+Edit `.env`:
+```
+APM_TYPE=none
+METRICS_TYPE=none
+```
+
+After editing the `.env` file, build the images:
+```sh
+docker compose up --build -d
+```
+
+#### How It Works
+The `APM_TYPE` and `METRICS_TYPE` variables from the `.env` file are passed as build arguments to the `Dockerfile`. The Dockerfile then uses these arguments to set the appropriate Go build tags (e.g., `-tags "otlp,metrics"`) during the `go build` command. This is how the library is compiled with only the code for the selected backends.
+
+For more details on the build tag system, see the `go-observability` library [documentation](https://github.com/app-obs/go#build-tags-for-conditional-compilation).
 
 ## Viewing the Results
 
